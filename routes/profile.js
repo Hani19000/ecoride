@@ -12,6 +12,13 @@ const ensureAuthenticated = (req, res, next) => {
   res.redirect('/login');
 };
 
-router.get('/', ensureAuthenticated, showProfile);
+router.get('/', async (req, res) => {
+    if (!req.session.userId) {
+      return res.redirect('/login');
+    }
+    const user = await userModel.findUserById(req.session.userId);
+    res.render('profile', { user });
+  });
+  
 
 export default router;

@@ -1,7 +1,14 @@
-// models/user.js
 import pkg from 'pg';
 const { Pool } = pkg;
 
+// Créer une instance du pool avec la configuration
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+});
 
 // Création d'un utilisateur
 export const createUser = async ({ username, email, password }) => {
