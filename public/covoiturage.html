@@ -7,7 +7,6 @@
     <title>covoiturage</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="style.css" />
-    <script src="covoiturage.js"></script>
 </head>
 
 <body>
@@ -110,7 +109,7 @@
           </div>
           <div class="filter-section">
             <h3>note du chauffeur</h3>
-            <select class="filter-select">
+            <select id="rating" class="filter-select">
               <option value="">peu importe</option>
               <option value="3">3+ étoiles</option>
               <option value="4">4+ étoiles</option>
@@ -120,15 +119,14 @@
           </div>
           <div class="filter-section">
             <h3>trier</h3>
-            <select class="filter-select">
-              <option value="price_croissant">prix: les moins chers</option>
+            <select id="sort" class="filter-select">
+              <option value="">prix: les moins chers</option>
               <option value="prix_décroissant">Price: les plus chers</option>
               <option value="départ">temps de départ</option>
               <option value="note">note du chauffeur</option>
             </select>
           </div>
-
-          <button class="reset-filters">rénitialiser</button>
+              <button onclick="clearDisplay()" class="reset-filters" >rénitialiser</button>
         </div>
       </aside>
     <section class="carpool-list">
@@ -209,7 +207,7 @@
               <span class="seats">👥 3 places restantes</span>
             </div>
             <div>
-              <button type="submit" class="book-button">détaills</button>
+              <button type="button" href="" class="book-button">détaills</button>
               <button type="submit" class="book-button">reserver</button>
             </div>
           </div>
@@ -246,6 +244,8 @@
 
 </section>
 
+<script src="/scripts/covoiturage.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
 </body>
 </html>
