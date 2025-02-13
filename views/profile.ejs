@@ -1,0 +1,18 @@
+<%- include('partials/header') %>
+
+<div class="container my-5">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h2>Profil de <%= user.username %></h2>
+    </div>
+    <div class="card-body">
+      <p><strong>Email :</strong> <%= user.email %></p>
+      <!-- Tu peux ajouter d'autres informations ici -->
+    </div>
+    <div class="card-footer text-right">
+      <a href="/logout" class="btn btn-secondary">Se déconnecter</a>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
