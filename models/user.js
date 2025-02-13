@@ -1,5 +1,7 @@
 // models/user.js
-import pool from '../config/db.js';
+import pkg from 'pg';
+const { Pool } = pkg;
+
 
 // Création d'un utilisateur
 export const createUser = async ({ username, email, password }) => {
