@@ -17,11 +17,8 @@ db.connect();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
-app.get("/", (req, res) => {
-  res.render("home.ejs");
-});
 
-app.get("/login", (req, res) => {
+app.get("/views", (req, res) => {
   res.render("login.ejs");
 });
 
@@ -76,4 +73,8 @@ app.post("/login", async (req, res) => {
   } catch (err) {
     console.log(err);
   }
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
