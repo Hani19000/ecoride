@@ -549,32 +549,3 @@ gap: 30rem;
         margin-bottom: 2rem;
       }
 } 
-
-body {
-  background-color: #00ffbf; 
-
-}
-.profile-header {
-  background: linear-gradient(135deg, #007bff, #6610f2);
-  height: 200px;
-  position: relative;
-  border-radius: 0 0 20px 20px;
-}
-.profile-pic {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  border: 5px solid white;
-  position: absolute;
-  bottom: -75px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.profile-info {
-  margin-top: 80px;
-  text-align: center;
-}
-.card {
-  border-radius: 15px;
-  background-color: #00ffbf;
-}
