@@ -56,6 +56,28 @@ app.post("/register", async (req, res) => {
   }
 });
 
+app.post("/api/register", async (req, res) => {
+  const { username: email, password, nom, prenom, address, departement, ville } = req.body;
+  
+  try {
+    const checkResult = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    if (checkResult.rows.length > 0) {
+      return res.status(400).json({ message: "Email already exists. Try logging in." });
+    } else {
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      await db.query(
+        "INSERT INTO users (email, password, nom, prenom, address, departement, ville) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        [email, hashedPassword, nom, prenom, address, departement, ville]
+      );
+      res.status(201).json({ message: "User registered successfully!" });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.post("/login", async (req, res) => {
   const email = req.body.username;
   const password = req.body.password;
@@ -78,6 +100,29 @@ app.post("/login", async (req, res) => {
     }
   } catch (err) {
     console.log(err);
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  const { username: email, password } = req.body;
+
+  try {
+    const result = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      const isMatch = await bcrypt.compare(password, user.password);
+
+      if (isMatch) {
+        res.json({ message: "Login successful", user });
+      } else {
+        res.status(401).json({ message: "Incorrect password" });
+      }
+    } else {
+      res.status(404).json({ message: "User not found" });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
