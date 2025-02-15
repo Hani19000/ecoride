@@ -21,21 +21,21 @@
           <div class="collapse navbar-collapse" id="navbarSupportedContent">
             <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
               <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="/public/index.html">Acceuil</a>
+                <a class="nav-link active" aria-current="page" href="index.html">Acceuil</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="/public/covoiturage.html">covoiturage</a>
+                <a class="nav-link" href="covoiturage.html">covoiturage</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="/public/contact.html">contact</a>
+                <a class="nav-link" href="contact.html">contact</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="/public/connexion.html">connexion/inscription</a>
+                <a class="nav-link" href="login">connexion</a>
               </li>
           </div>
         </div>
     </nav>
-    </header>
+    </header> 
     <!--End header-->
 
     <!--START main-->
@@ -126,7 +126,7 @@
               <option value="note">note du chauffeur</option>
             </select>
           </div>
-              <button onclick="clearDisplay()" class="reset-filters" >rénitialiser</button>
+              <button onclick="clearDisplay()" class="reset-filters">rénitialiser</button>
         </div>
       </aside>
     <section class="carpool-list">
@@ -228,15 +228,15 @@
         <div class="footer-center">
           <p>Téléchargez notre application</p>
         <div>
-          <a href="" target="_self"> <img src="/public/assets/apple.png"></a>
-          <a href="" target="_self"> <img src="/public/assets/Google-Play-Embleme.png"></a>
+          <a href="" target="_self"> <img src="assets/apple.png"></a>
+          <a href="" target="_self"> <img src="assets/Google-Play-Embleme.png"></a>
         </div>
         </div>
         <div class="footer-right">
           <p>suivez-nous sur les réseaux sociaux</p>
         <div>
-          <a href="" target="_self"> <img src="/public/assets/twitter.png"></a>
-          <a href="" target="_self"> <img src="/public/assets/facebook.png"></a>
+          <a href="" target="_self"> <img src="assets/twitter.png"></a>
+          <a href="" target="_self"> <img src="assets/facebook.png"></a>
         </div>
       </div>
   </footer>
@@ -244,7 +244,19 @@
 
 </section>
 
-<script src="/scripts/covoiturage.js"></script>
+<script>
+  const prix = document.getElementById("max-price");
+  const durée = document.getElementById("max-duration");
+  const note = document.getElementById("rating");
+  const trie = document.getElementById("sort");
+  
+  function clearDisplay() {
+      prix.value = '';
+      durée.value = '';
+      note.value = '';
+      trie.value = '';
+  }
+  </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
 </body>

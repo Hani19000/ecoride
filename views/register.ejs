@@ -1,31 +1,82 @@
 <%- include('partials/header') %>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
-<main>
-    <form class="row g-0" action="/register" method="POST">
-        <div class="col-sm-10">
-          <label for="inputEmail4" class="form-label">Adresse Mail</label>
-          <input type="email" class="form-control" id="inputEmail4" name="username" required>
-        </div>
-        <div class="col-sm-10">
-          <label for="inputPassword4" class="form-label">Mot De Passe</label>
-          <input type="password" class="form-control" id="inputPassword4" name="password" required>
-        </div>
-        <button type="submit" class="btn btn-primary mt-3">S'inscrire</button>
-    </form>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<main class="d-flex justify-content-center align-items-center vh-100">
+    <div class="card p-4 shadow-lg" style="max-width: 450px; width: 100%;">
+        <h2 class="text-center mb-4">Inscription</h2>
+        <form action="/register" method="POST">
+            <div class="mb-3">
+                <label for="inputEmail4" class="form-label">Adresse Mail</label>
+                <input type="email" class="form-control" id="inputEmail4" name="username" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="inputPassword4" class="form-label">Mot De Passe</label>
+                <input type="password" class="form-control" id="inputPassword4" name="password" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="exampleInputEmail1" class="form-label">Nom</label>
+                <input type="text" class="form-control" id="exampleInputEmail1" name="nom" placeholder="Nom" autocomplete="off" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="inputprénom" class="form-label">Prénom</label>
+                <input type="text" class="form-control" id="inputprénom" name="prenom" placeholder="Prénom" autocomplete="off" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="inputAddress" class="form-label">Adresse</label>
+                <input type="text" class="form-control" id="inputAddress" name="address" placeholder="1234 Main St">
+            </div>
+
+            <div class="mb-3">
+                <label for="inputAddress2" class="form-label">Département</label>
+                <input type="text" class="form-control" id="inputAddress2" name="departement" placeholder="Ex: 75">
+            </div>
+
+            <div class="mb-3">
+                <label for="inputCity" class="form-label">Ville</label>
+                <input type="text" class="form-control" id="inputCity" name="ville" placeholder="Lyon, Paris">
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="gridCheck">
+                <label class="form-check-label" for="gridCheck">
+                    Se souvenir de moi
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">S'inscrire</button>
+        </form>
+    </div>
 </main>
 
 <style>
-    main {
-        display: flex;
-        align-items: center;
-        flex-direction: column;
-        padding: 125px 50px 50px;
-        background-color: #00ffbf; 
-        flex-grow: 1;
+    body {
+        background: #0c0c0c;
+    }
+
+    .card {
+        background: rgb(80, 178, 163);
+        border-radius: 10px;
+    }
+
+    .form-control {
+        border-radius: 5px;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
     }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <%- include('partials/footer') %>

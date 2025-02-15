@@ -18,7 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 
-app.get("/views", (req, res) => {
+app.get("/login", (req, res) => {
   res.render("login.ejs");
 });
 
@@ -29,7 +29,13 @@ app.get("/register", (req, res) => {
 app.post("/register", async (req, res) => {
   const email = req.body.username;
   const password = req.body.password;
-
+  const nom = req.body.nom;
+  const prenom = req.body.prenom;
+  const address = req.body.address;
+  const departement = req.body.departement;
+  const ville = req.body.ville;
+  
+  
   try {
     const checkResult = await db.query("SELECT * FROM users WHERE email = $1", [
       email,
@@ -39,11 +45,11 @@ app.post("/register", async (req, res) => {
       res.send("Email already exists. Try logging in.");
     } else {
       const result = await db.query(
-        "INSERT INTO users (email, password) VALUES ($1, $2)",
-        [email, password]
+        "INSERT INTO users (email, password, nom, prenom, address, departement, ville) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        [email, password, nom, prenom, address, departement, ville]
       );
       console.log(result);
-      res.render("secrets.ejs");
+      res.render("profile.ejs");
     }
   } catch (err) {
     console.log(err);
@@ -63,7 +69,7 @@ app.post("/login", async (req, res) => {
       const storedPassword = user.password;
 
       if (password === storedPassword) {
-        res.render("secrets.ejs");
+        res.render("profile.ejs");
       } else {
         res.send("Incorrect Password");
       }
