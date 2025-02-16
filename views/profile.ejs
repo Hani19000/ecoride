@@ -206,36 +206,7 @@
         </div>
       </div>
     </div>
-    <!-- Section pour saisir un voyage (accessible uniquement aux chauffeurs) -->
-    <% if (user.role && user.role.includes('chauffeur')) { %>
-      <div class="row mt-4">
-        <div class="col-12">
-          <div class="card p-3">
-            <h5>Saisir un voyage</h5>
-            <form action="/add-trip" method="POST">
-              <div class="mb-3">
-                <label for="departure" class="form-label">Adresse de départ</label>
-                <input type="text" class="form-control" id="departure" name="departure" required>
-              </div>
-              <div class="mb-3">
-                <label for="arrival" class="form-label">Adresse d'arrivée</label>
-                <input type="text" class="form-control" id="arrival" name="arrival" required>
-              </div>
-              <div class="mb-3">
-                <label for="price" class="form-label">Prix proposé</label>
-                <div class="input-group">
-                  <input type="number" class="form-control" id="price" name="price" required>
-                  <span class="input-group-text">Crédits (2 crédits seront déduits)</span>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary">Valider le voyage</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    <% } %>
-  </div>
-
+    
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       const roleChauffeur = document.getElementById('roleChauffeur');
