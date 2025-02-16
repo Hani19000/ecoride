@@ -1,4 +1,55 @@
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<% if (!user) { %>
+  <p class="text-danger text-center">Aucune donnée utilisateur disponible. Veuillez vous reconnecter.</p>
+<% } else { %>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Profil - EcoRide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #00ffbf;
+    }
+    .profile-header {
+      background: linear-gradient(135deg, #007bff, #6610f2);
+      height: 200px;
+      position: relative;
+      border-radius: 0 0 20px 20px;
+    }
+    .profile-pic {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: 5px solid white;
+      position: absolute;
+      bottom: -75px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .profile-info {
+      margin-top: 80px;
+      text-align: center;
+    }
+    .card {
+      border-radius: 15px;
+      background-color: rgb(80, 178, 163);
+    }
+    .list-group-item {
+      background-color: #00f5ac73; 
+      color: #000; 
+      border-color: #ffffff80;
+    }
+    .list-group-item .badge.bg-success {
+      background-color: #20d149 !important; 
+    }
+    .list-group-item .badge.bg-warning {
+      background-color: #ffc107 !important; 
+    }
+    .list-group-item .badge.bg-danger {
+      background-color: #dc3545 !important; 
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -37,35 +88,52 @@
   <div class="container mt-5">
     <!-- Informations de profil -->
     <div class="profile-info">
-      <h2>Jean Dupont</h2>
-      <p class="text-muted">Conducteur & Passager</p>
+      <h2><%= user.nom %> <%= user.prenom %></h2>
+      <p class="text-muted"><%= user.role ? user.role : "Conducteur & Passager" %></p>
     </div>
     <div class="row mt-4">
       <div class="col-md-6">
         <div class="card p-3">
           <h5>Informations</h5>
-          <p><strong>Email :</strong> jean.dupont@example.com</p>
-          <p><strong>Ville :</strong> Paris, France</p>
-          <p><strong>Membre depuis :</strong> Janvier 2023</p>
+          <p><strong>Email :</strong> <%= user.email %></p>
+          <p><strong>Ville :</strong> <%= user.ville %> <%= user.departement ? (', ' + user.departement) : '' %></p>
+          <p><strong>Membre depuis :</strong> <%= user.created_at ? user.created_at : "N/A" %></p>
         </div>
       </div>
       <div class="col-md-6">
         <div class="card p-3">
           <h5>Statistiques</h5>
-          <p><strong>Trajets effectués :</strong> 24</p>
-          <p><strong>Avis moyen :</strong> ⭐⭐⭐⭐☆ (4.5/5)</p>
-          <p><strong>Véhicule :</strong> Peugeot 208 - Bleu</p>
+          <p><strong>Trajets effectués :</strong> <%= user.trajets || 0 %></p>
+          <p><strong>Avis moyen :</strong> <%= user.avis ? ("⭐⭐⭐⭐☆ (" + user.avis + "/5)") : "⭐⭐⭐⭐☆ (4.5/5)" %></p>
+          <p><strong>Véhicule :</strong> <%= user.voiture || "Peugeot 208 - Bleu" %></p>
         </div>
       </div>
     </div>
+
+    <!-- Derniers trajets dynamiques -->
     <div class="row mt-4">
       <div class="col-12">
         <div class="card p-3">
           <h5>Derniers trajets</h5>
           <ul class="list-group">
-            <li class="list-group-item">Paris → Lyon <span class="badge bg-success">Terminé</span></li>
-            <li class="list-group-item">Lyon → Marseille <span class="badge bg-warning">En attente</span></li>
-            <li class="list-group-item">Marseille → Nice <span class="badge bg-danger">Annulé</span></li>
+            <% if (user.trips && user.trips.length > 0) { %>
+              <% user.trips.forEach(function(trip) { %>
+                <li class="list-group-item">
+                  <%= trip.departure %> → <%= trip.arrival %>
+                  <% if (trip.status === 'Terminé') { %>
+                    <span class="badge bg-success">Terminé</span>
+                  <% } else if (trip.status === 'En attente') { %>
+                    <span class="badge bg-warning">En attente</span>
+                  <% } else if (trip.status === 'Annulé') { %>
+                    <span class="badge bg-danger">Annulé</span>
+                  <% } else { %>
+                    <span class="badge bg-secondary"><%= trip.status %></span>
+                  <% } %>
+                </li>
+              <% }); %>
+            <% } else { %>
+              <li class="list-group-item">Aucun trajet récent</li>
+            <% } %>
           </ul>
         </div>
       </div>
@@ -76,58 +144,58 @@
       <div class="col-12">
         <div class="card p-3">
           <h5>Paramètres du compte</h5>
-          <p><strong>Crédits :</strong> 20</p>
+          <p><strong>Crédits :</strong> <%= user.credits || 20 %></p>
           <form id="profileForm">
             <!-- Sélection du rôle -->
             <div class="mb-3">
               <label class="form-label">Sélectionnez votre rôle :</label>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="roleChauffeur" name="role[]" value="chauffeur">
+                <input class="form-check-input" type="checkbox" id="roleChauffeur" name="role[]" value="chauffeur" <%= (user.role && user.role.includes('chauffeur')) ? 'checked' : '' %>>
                 <label class="form-check-label" for="roleChauffeur">Chauffeur</label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="rolePassager" name="role[]" value="passager">
+                <input class="form-check-input" type="checkbox" id="rolePassager" name="role[]" value="passager" <%= (user.role && user.role.includes('passager')) ? 'checked' : '' %>>
                 <label class="form-check-label" for="rolePassager">Passager</label>
               </div>
             </div>
 
             <!-- Informations chauffeur à fournir si le rôle Chauffeur est sélectionné -->
-            <div id="chauffeurDetails" class="border p-3 mb-3 d-none">
+            <div id="chauffeurDetails" class="border p-3 mb-3 <%= (user.role && user.role.includes('chauffeur')) ? '' : 'd-none' %>">
               <h6>Informations Véhicule(s)</h6>
               <div class="mb-3">
                 <label for="plaque" class="form-label">Plaque d'immatriculation</label>
-                <input type="text" class="form-control" id="plaque" name="plaque" placeholder="AB-123-CD">
+                <input type="text" class="form-control" id="plaque" name="plaque" placeholder="AB-123-CD" value="<%= user.plaque || '' %>">
               </div>
               <div class="mb-3">
                 <label for="dateImmat" class="form-label">Date de première immatriculation</label>
-                <input type="date" class="form-control" id="dateImmat" name="dateImmat">
+                <input type="date" class="form-control" id="dateImmat" name="dateImmat" value="<%= user.dateImmat ? user.dateImmat.toISOString().split('T')[0] : '' %>">
               </div>
               <div class="row">
                 <div class="col-md-4 mb-3">
                   <label for="marque" class="form-label">Marque</label>
-                  <input type="text" class="form-control" id="marque" name="marque" placeholder="Peugeot">
+                  <input type="text" class="form-control" id="marque" name="marque" placeholder="Peugeot" value="<%= user.marque || '' %>">
                 </div>
                 <div class="col-md-4 mb-3">
                   <label for="modele" class="form-label">Modèle</label>
-                  <input type="text" class="form-control" id="modele" name="modele" placeholder="208">
+                  <input type="text" class="form-control" id="modele" name="modele" placeholder="208" value="<%= user.modele || '' %>">
                 </div>
                 <div class="col-md-4 mb-3">
                   <label for="couleur" class="form-label">Couleur</label>
-                  <input type="text" class="form-control" id="couleur" name="couleur" placeholder="Bleu">
+                  <input type="text" class="form-control" id="couleur" name="couleur" placeholder="Bleu" value="<%= user.couleur || '' %>">
                 </div>
               </div>
               <div class="mb-3">
                 <label for="places" class="form-label">Nombre de places disponibles</label>
-                <input type="number" class="form-control" id="places" name="places" min="1" placeholder="4">
+                <input type="number" class="form-control" id="places" name="places" min="1" placeholder="4" value="<%= user.places || '' %>">
               </div>
               <h6>Préférences</h6>
               <div class="mb-3">
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="prefFumeur" name="pref[]" value="fumeur">
+                  <input class="form-check-input" type="checkbox" id="prefFumeur" name="pref[]" value="fumeur" <%= (user.pref && user.pref.includes('fumeur')) ? 'checked' : '' %>>
                   <label class="form-check-label" for="prefFumeur">Fumeur</label>
                 </div>
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="prefAnimal" name="pref[]" value="animal">
+                  <input class="form-check-input" type="checkbox" id="prefAnimal" name="pref[]" value="animal" <%= (user.pref && user.pref.includes('animal')) ? 'checked' : '' %>>
                   <label class="form-check-label" for="prefAnimal">Animal</label>
                 </div>
               </div>
@@ -138,70 +206,63 @@
         </div>
       </div>
     </div>
-
+    <!-- Section pour saisir un voyage (accessible uniquement aux chauffeurs) -->
+    <% if (user.role && user.role.includes('chauffeur')) { %>
+      <div class="row mt-4">
+        <div class="col-12">
+          <div class="card p-3">
+            <h5>Saisir un voyage</h5>
+            <form action="/add-trip" method="POST">
+              <div class="mb-3">
+                <label for="departure" class="form-label">Adresse de départ</label>
+                <input type="text" class="form-control" id="departure" name="departure" required>
+              </div>
+              <div class="mb-3">
+                <label for="arrival" class="form-label">Adresse d'arrivée</label>
+                <input type="text" class="form-control" id="arrival" name="arrival" required>
+              </div>
+              <div class="mb-3">
+                <label for="price" class="form-label">Prix proposé</label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="price" name="price" required>
+                  <span class="input-group-text">Crédits (2 crédits seront déduits)</span>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">Valider le voyage</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    <% } %>
   </div>
-  <style>
-    body {
-      background-color: #00ffbf;
-    }
-    .profile-header {
-      background: linear-gradient(135deg, #007bff, #6610f2);
-      height: 200px;
-      position: relative;
-      border-radius: 0 0 20px 20px;
-    }
-    .profile-pic {
-      width: 150px;
-      height: 150px;
-      border-radius: 50%;
-      border: 5px solid white;
-      position: absolute;
-      bottom: -75px;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-    .profile-info {
-      margin-top: 80px;
-      text-align: center;
-    }
-    .card {
-      border-radius: 15px;
-      background-color: rgb(80, 178, 163);
-    }
 
-.list-group-item {
-    background-color: #00f5ac73; 
-    color: #000; 
-    border-color: #ffffff80;
-}
-
-.list-group-item .badge.bg-success {
-    background-color: #20d149 !important; 
-}
-
-.list-group-item .badge.bg-warning {
-    background-color: #ffc107 !important; 
-}
-
-.list-group-item .badge.bg-danger {
-    background-color: #dc3545 !important; 
-}
-
-  </style>
   <script>
-  document.addEventListener('DOMContentLoaded', function(){
-    const roleChauffeur = document.getElementById('roleChauffeur');
-    const chauffeurDetails = document.getElementById('chauffeurDetails');
-    
-    roleChauffeur.addEventListener('change', function(){
-      if (roleChauffeur.checked) {
-        chauffeurDetails.classList.remove('d-none');
-      } else {
-        chauffeurDetails.classList.add('d-none');
-      }
+    document.addEventListener('DOMContentLoaded', function(){
+      const roleChauffeur = document.getElementById('roleChauffeur');
+      const chauffeurDetails = document.getElementById('chauffeurDetails');
+      
+      roleChauffeur.addEventListener('change', function(){
+        if (roleChauffeur.checked) {
+          chauffeurDetails.classList.remove('d-none');
+        } else {
+          chauffeurDetails.classList.add('d-none');
+        }
+      });
     });
-  });
+ document.addEventListener('DOMContentLoaded', function() {
+      const vehicleSelect = document.getElementById('vehicle');
+      const newVehicleFields = document.getElementById('newVehicleFields');
+      
+      vehicleSelect.addEventListener('change', function() {
+        if (vehicleSelect.value === 'new') {
+          newVehicleFields.classList.remove('d-none');
+        } else {
+          newVehicleFields.classList.add('d-none');
+        }
+      });
+    });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+<% } %>
