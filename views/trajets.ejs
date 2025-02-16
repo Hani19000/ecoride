@@ -1,0 +1,168 @@
+<%- include('partials/header') %>
+
+<body>
+
+    <!--START main-->
+  <main>
+    <section class="search-card">
+      <form class="search-form">
+        <div class="search-grid">
+          <div class="input-group">
+            <label for="from">De</label>
+            <div class="input-wrapper">
+              <span class="icon">🔍</span>
+              <input type="text" id="from" placeholder="Départ" class="input-field">
+            </div>
+          </div>
+          <div class="input-group">
+            <label for="to">A</label>
+            <div class="input-wrapper">
+              <span class="icon">🔍</span>
+              <input type="text" id="to" placeholder="Arrivé" class="input-field">
+            </div>
+          </div>
+          <div class="input-group">
+            <label for="date">Date</label>
+            <div class="input-wrapper">
+              <span class="icon">📅</span>
+              <input type="date" id="date" class="input-field">
+            </div>
+          </div>
+          <div class="input-group">
+            <label for="passengers">passagers</label>
+            <div class="input-wrapper">
+              <span class="icon">👥</span>
+              <select id="passengers" class="input-field">
+                <option value="1">1 passager</option>
+                <option value="2">2 passagers</option>
+                <option value="3">3 passagers</option>
+                <option value="4">4 passagers</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="search-actions">
+          <button type="submit" class="search-button"> chercher </button>
+        </div>
+      </form>
+    </section>
+    <div class="content-layout">
+      <aside class="filter-sidebar">
+        <div class="filter-card">
+          <h2>filtres</h2>
+          <div class="filter-section">
+            <h3>prix</h3>
+            <div class="input-group">
+              <input type="number" id="max-price" placeholder="prix maximum" class="filter-input">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+          <div class="filter-section">
+            <h3>type de voiture</h3>
+            <label class="checkbox-label">
+              <input type="checkbox" id="eco-friendly">
+              <span class="checkbox-text">uniquement voiture éléctrique</span>
+            </label>
+          </div>
+          <div class="filter-section">
+            <h3>duré du voyage</h3>
+            <div class="input-group">
+              <input type="number" id="max-duration" placeholder="duré maximum" class="filter-input">
+              <span class="input-suffix">hrs</span>
+            </div>
+          </div>
+          <div class="filter-section">
+            <h3>note du chauffeur</h3>
+            <select id="rating" class="filter-select">
+              <option value="">peu importe</option>
+              <option value="3">3+ étoiles</option>
+              <option value="4">4+ étoiles</option>
+              <option value="4.5">4.5+ étoiles</option>
+              <option value="4.8">4.8+ étoiles</option>
+            </select>
+          </div>
+          <div class="filter-section">
+            <h3>trier</h3>
+            <select id="sort" class="filter-select">
+              <option value="">prix: les moins chers</option>
+              <option value="prix_décroissant">Price: les plus chers</option>
+              <option value="départ">temps de départ</option>
+              <option value="note">note du chauffeur</option>
+            </select>
+          </div>
+              <button onclick="clearDisplay()" class="reset-filters">rénitialiser</button>
+        </div>
+      </aside>
+      <section class="carpool-list">
+        <% if (trajets.length > 0) { %>
+          <% trajets.forEach(trajet => { %>
+              <div class="carpool-card">
+                  <div class="card-header">
+                      <div class="driver-info">
+                          <img src="/assets/man-avatar-clipart-illustration-free-png.webp" alt="Avatar" class="avatar">
+                          <div>
+                              <h3><%= trajet.chauffeur_nom %></h3>
+                              <div class="rating">
+                                  <span class="star">⭐</span>
+                                  <span><%= trajet.note || '4.5' %></span>
+                                  <span class="rides">(<%= trajet.nb_covoiturages || '100' %> covoiturages)</span>
+                              </div>
+                          </div>
+                      </div>
+                      <div class="price">
+                          <span class="amount"><%= trajet.prix_par_place %> €</span>
+                          <span class="label">par place</span>
+                      </div>
+                  </div>
+                  <div class="journey-info" style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+                      <div style="display: flex; justify-content: space-between; width: 70%; font-size: 1rem; font-weight: bold;">
+                          <div class="time">🕐 <%= trajet.heure_depart %></div>
+                          <div class="time">🕐 <%= trajet.heure_arrivee %></div>
+                      </div>
+                      <div style="display: flex; align-items: center; justify-content: space-between; width: 70%; margin-top: 3px;">
+                          <div class="city" style="font-size: 1.2rem; font-weight: bold;"><%= trajet.lieu_depart %></div>
+                          <span style="font-size: 3rem; flex-grow: 1; text-align: center;">⟶</span>
+                          <div class="city" style="font-size: 1.2rem; font-weight: bold;"><%= trajet.destination %></div>
+                      </div>
+                  </div>
+                  <div class="card-footer">
+                      <div class="details">
+                          <span class="seats">👥 <%= trajet.nombre_de_places %> places restantes</span>
+                      </div>
+                      <div>
+                          <a href="/details/<%= trajet.id %>" class="book-button">Détails</a>
+                      </div>
+                  </div>
+              </div>
+          <% }) %>
+        <% } else { %>
+          <p>Aucun trajet disponible pour le moment.</p>
+        <% } %>
+      </section>
+      
+      
+      
+      
+      
+    </main> 
+
+    <!--END main-->
+</section>
+
+<script>
+  const prix = document.getElementById("max-price");
+  const durée = document.getElementById("max-duration");
+  const note = document.getElementById("rating");
+  const trie = document.getElementById("sort");
+  
+  function clearDisplay() {
+      prix.value = '';
+      durée.value = '';
+      note.value = '';
+      trie.value = '';
+  }
+  </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<%- include('partials/footer') %>
+</body>
+</html>

@@ -180,13 +180,6 @@ p {
   color: var(--gray-500);
 }
 
-.journey-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
 .time {
   color: var(--gray-600);
   font-size: 0.875rem;
