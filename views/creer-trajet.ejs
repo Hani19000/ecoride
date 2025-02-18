@@ -1,0 +1,126 @@
+<%- include('partials/header') %>
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white text-center">
+                    <h2>Créer un nouveau trajet</h2>
+                </div>
+                <div class="card-body">
+                    <% if (vehicule) { %>
+                        <div class="mb-4">
+                            <h4 class="text-center">Informations du véhicule</h4>
+                            <div class="row text-center">
+                                <div class="col-md-6">
+                                    <p><strong>Marque :</strong> <%= vehicule.marque %></p>
+                                    <p><strong>Modèle :</strong> <%= vehicule.modele %></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Couleur :</strong> <%= vehicule.couleur || 'Non spécifié' %></p>
+                                    <p><strong>Places disponibles :</strong> <%= vehicule.nombre_places_disponibles %></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form id="trajetForm">
+                            <input type="hidden" name="vehicule_id" value="<%= vehicule.id %>">
+                            
+                            <div class="mb-3">
+                                <label for="lieu_depart" class="form-label">Lieu de départ</label>
+                                <input type="text" class="form-control" id="lieu_depart" name="lieu_depart" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="destination" class="form-label">Destination</label>
+                                <input type="text" class="form-control" id="destination" name="destination" required>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="date_du_trajet" class="form-label">Date du trajet</label>
+                                    <input type="date" class="form-control" id="date_du_trajet" name="date_du_trajet" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="heure_depart" class="form-label">Heure de départ</label>
+                                    <input type="time" class="form-control" id="heure_depart" name="heure_depart" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="duree_du_trajet" class="form-label">Durée du trajet</label>
+                                <input type="time" class="form-control" id="duree_du_trajet" name="duree_du_trajet" required>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="nombre_de_places" class="form-label">Nombre de places</label>
+                                    <input type="number" class="form-control" id="nombre_de_places" 
+                                            name="nombre_de_places" min="1" 
+                                            max="<%= vehicule.nombre_places_disponibles %>"
+                                            value="<%= vehicule.nombre_places_disponibles %>" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="prix_par_place" class="form-label">Prix par place (€)</label>
+                                    <input type="number" class="form-control" id="prix_par_place" 
+                                            name="prix_par_place" min="0" step="0.01" required>
+                                </div>
+                            </div>
+
+                            <div class="text-center mt-4">
+                                <button type="submit" class="btn btn-primary">Créer le trajet</button>
+                                <a href="/profile" class="btn btn-secondary ms-2">Annuler</a>
+                            </div>
+                        </form>
+                    <% } else { %>
+                        <div class="alert alert-danger text-center">
+                            Aucun véhicule n'a été sélectionné. Veuillez d'abord enregistrer un véhicule.
+                        </div>
+                        <div class="text-center">
+                            <a href="/profile" class="btn btn-primary">Retour au profil</a>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trajetForm = document.getElementById('trajetForm');
+    
+    if (trajetForm) {
+        trajetForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {};
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+
+            try {
+                const response = await fetch('/trajet/creer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('✅ Trajet créé avec succès !');
+                    window.location.href = '/trajets';
+                } else {
+                    alert('❌ Erreur : ' + (result.error || 'Une erreur est survenue'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Une erreur est survenue lors de la création du trajet');
+            }
+        });
+    }
+});
+</script>

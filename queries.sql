@@ -46,3 +46,6 @@ CREATE TABLE role (
 ALTER TABLE trajet
 ADD COLUMN heure_depart TIME,
 ADD COLUMN heure_arrivee TIME;
+
+app.use(express.static("/"));
+app.use(express.json()); 

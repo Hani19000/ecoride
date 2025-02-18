@@ -5,34 +5,34 @@
     <!--START main-->
   <main>
     <section class="search-card">
-      <form class="search-form">
+      <form class="search-form" onsubmit="return false;">
         <div class="search-grid">
           <div class="input-group">
             <label for="from">De</label>
             <div class="input-wrapper">
               <span class="icon">🔍</span>
-              <input type="text" id="from" placeholder="Départ" class="input-field">
+              <input type="text" id="from" placeholder="Départ" class="input-field" oninput="filterTrajets()">
             </div>
           </div>
           <div class="input-group">
             <label for="to">A</label>
             <div class="input-wrapper">
               <span class="icon">🔍</span>
-              <input type="text" id="to" placeholder="Arrivé" class="input-field">
+              <input type="text" id="to" placeholder="Arrivé" class="input-field" oninput="filterTrajets()">
             </div>
           </div>
           <div class="input-group">
             <label for="date">Date</label>
             <div class="input-wrapper">
               <span class="icon">📅</span>
-              <input type="date" id="date" class="input-field">
+              <input type="date" id="date" class="input-field" onchange="filterTrajets()">
             </div>
           </div>
           <div class="input-group">
             <label for="passengers">passagers</label>
             <div class="input-wrapper">
               <span class="icon">👥</span>
-              <select id="passengers" class="input-field">
+              <select id="passengers" class="input-field" onchange="filterTrajets()">
                 <option value="1">1 passager</option>
                 <option value="2">2 passagers</option>
                 <option value="3">3 passagers</option>
@@ -42,7 +42,7 @@
           </div>
         </div>
         <div class="search-actions">
-          <button type="submit" class="search-button"> chercher </button>
+          <button type="button" class="search-button" onclick="filterTrajets()">chercher</button>
         </div>
       </form>
     </section>
@@ -53,27 +53,27 @@
           <div class="filter-section">
             <h3>prix</h3>
             <div class="input-group">
-              <input type="number" id="max-price" placeholder="prix maximum" class="filter-input">
+              <input type="number" id="max-price" placeholder="prix maximum" class="filter-input" oninput="filterTrajets()">
               <span class="input-suffix">€</span>
             </div>
           </div>
           <div class="filter-section">
             <h3>type de voiture</h3>
             <label class="checkbox-label">
-              <input type="checkbox" id="eco-friendly">
+              <input type="checkbox" id="eco-friendly" onchange="filterTrajets()">
               <span class="checkbox-text">uniquement voiture éléctrique</span>
             </label>
           </div>
           <div class="filter-section">
             <h3>duré du voyage</h3>
             <div class="input-group">
-              <input type="number" id="max-duration" placeholder="duré maximum" class="filter-input">
+              <input type="number" id="max-duration" placeholder="duré maximum" class="filter-input" oninput="filterTrajets()">
               <span class="input-suffix">hrs</span>
             </div>
           </div>
           <div class="filter-section">
             <h3>note du chauffeur</h3>
-            <select id="rating" class="filter-select">
+            <select id="rating" class="filter-select" onchange="filterTrajets()">
               <option value="">peu importe</option>
               <option value="3">3+ étoiles</option>
               <option value="4">4+ étoiles</option>
@@ -83,71 +83,280 @@
           </div>
           <div class="filter-section">
             <h3>trier</h3>
-            <select id="sort" class="filter-select">
-              <option value="">prix: les moins chers</option>
+            <select id="sort" class="filter-select" onchange="filterTrajets()">
+              <option value="prix_croissant">prix: les moins chers</option>
               <option value="prix_décroissant">Price: les plus chers</option>
               <option value="départ">temps de départ</option>
               <option value="note">note du chauffeur</option>
             </select>
           </div>
-              <button onclick="clearDisplay()" class="reset-filters">rénitialiser</button>
+          <button onclick="clearFilters()" class="reset-filters">rénitialiser</button>
         </div>
       </aside>
-      <section class="carpool-list">
-        <% if (trajets.length > 0) { %>
-          <% trajets.forEach(trajet => { %>
-              <div class="carpool-card">
-                  <div class="card-header">
-                      <div class="driver-info">
-                          <img src="/assets/man-avatar-clipart-illustration-free-png.webp" alt="Avatar" class="avatar">
-                          <div>
-                              <h3><%= trajet.chauffeur_nom %></h3>
-                              <div class="rating">
-                                  <span class="star">⭐</span>
-                                  <span><%= trajet.note || '4.5' %></span>
-                                  <span class="rides">(<%= trajet.nb_covoiturages || '100' %> covoiturages)</span>
-                              </div>
-                          </div>
-                      </div>
-                      <div class="price">
-                          <span class="amount"><%= trajet.prix_par_place %> €</span>
-                          <span class="label">par place</span>
-                      </div>
+
+      <section class="carpool-list" id="carpoolList">
+        <% if (trajets && trajets.length > 0) { %>
+          <% trajets.forEach(function(trajet) { %>
+            <div class="carpool-card" 
+                 data-depart="<%= trajet.lieu_depart.toLowerCase() %>"
+                 data-destination="<%= trajet.destination.toLowerCase() %>"
+                 data-date="<%= trajet.date_du_trajet %>"
+                 data-places="<%= trajet.nombre_de_places %>"
+                 data-prix="<%= trajet.prix_par_place %>">
+              <div class="card-header">
+                <div class="driver-info">
+                  <div class="avatar-container">
+                    <img src="/assets/man-avatar-clipart-illustration-free-png.webp" alt="Driver" class="driver-avatar">
                   </div>
-                  <div class="journey-info" style="display: flex; flex-direction: column; align-items: center; text-align: center;">
-                      <div style="display: flex; justify-content: space-between; width: 70%; font-size: 1rem; font-weight: bold;">
-                          <div class="time">🕐 <%= trajet.heure_depart %></div>
-                          <div class="time">🕐 <%= trajet.heure_arrivee %></div>
-                      </div>
-                      <div style="display: flex; align-items: center; justify-content: space-between; width: 70%; margin-top: 3px;">
-                          <div class="city" style="font-size: 1.2rem; font-weight: bold;"><%= trajet.lieu_depart %></div>
-                          <span style="font-size: 3rem; flex-grow: 1; text-align: center;">⟶</span>
-                          <div class="city" style="font-size: 1.2rem; font-weight: bold;"><%= trajet.destination %></div>
-                      </div>
+                  <div class="driver-details">
+                    <span class="driver-name"><%= trajet.prenom %> <%= trajet.nom %></span>
+                    <div class="rating">
+                      <span class="stars">⭐⭐⭐⭐☆</span>
+                      <span class="rating-count">(4.5)</span>
+                    </div>
                   </div>
-                  <div class="card-footer">
-                      <div class="details">
-                          <span class="seats">👥 <%= trajet.nombre_de_places %> places restantes</span>
-                      </div>
-                      <div>
-                          <a href="/details/<%= trajet.id %>" class="book-button">Détails</a>
-                      </div>
-                  </div>
+                </div>
               </div>
-          <% }) %>
+
+              <div class="card-content">
+                <div class="journey-details">
+                  <div class="location">
+                    <div class="location-item">
+                      <span class="location-label">Départ:</span>
+                      <span class="departure"><%= trajet.lieu_depart %></span>
+                    </div>
+                    <span class="arrow">➜</span>
+                    <div class="location-item">
+                      <span class="location-label">Arrivée:</span>
+                      <span class="destination"><%= trajet.destination %></span>
+                    </div>
+                  </div>
+                  <div class="time-details">
+                    <div class="time-item">
+                      <span class="time-label">Date:</span>
+                      <span class="date"><%= trajet.date_du_trajet %></span>
+                    </div>
+                    <div class="time-item">
+                      <span class="time-label">Départ à:</span>
+                      <span class="time"><%= trajet.heure_depart %></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="vehicle-info">
+                  <% if (trajet.marque && trajet.modele) { %>
+                    <span class="vehicle-label">Véhicule:</span>
+                    <span class="vehicle"><%= trajet.marque %> <%= trajet.modele %></span>
+                  <% } %>
+                </div>
+              </div>
+
+              <div class="card-footer">
+                <div class="price-seats">
+                  <div class="price-container">
+                    <span class="price-label">Prix par place</span>
+                    <span class="price"><%= trajet.prix_par_place %> €</span>
+                  </div>
+                  <div class="seats-container">
+                    <span class="seats-label">Places disponibles</span>
+                    <span class="seats">👥 <%= trajet.nombre_de_places %></span>
+                  </div>
+                </div>
+                <div class="action-container">
+                  <a class="book-button" href="/trajet/<%= trajet.id %>">Voir Détails</a>
+                </div>
+              </div>
+            </div>
+          <% }); %>
         <% } else { %>
-          <p>Aucun trajet disponible pour le moment.</p>
+          <div class="alert alert-info">
+            <% if (search.depart || search.destination || search.date) { %>
+              Aucun trajet ne correspond à vos critères de recherche.
+            <% } else { %>
+              Aucun trajet disponible pour le moment.
+            <% } %>
+          </div>
         <% } %>
       </section>
-      
-      
-      
-      
-      
-    </main> 
+    </div>
+  </main> 
 
-    <!--END main-->
+  <!--END main-->
 </section>
+
+<style>
+.carpool-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.carpool-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+  margin-bottom: 1.5rem;
+}
+
+.driver-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatar-container {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.driver-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.driver-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.driver-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stars {
+  color: #ffd700;
+}
+
+.rating-count {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.card-content {
+  padding: 1rem 0;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.journey-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.location-item, .time-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.location-label, .time-label, .vehicle-label {
+  font-size: 0.85rem;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.departure, .destination, .date, .time {
+  font-weight: 500;
+  color: #333;
+}
+
+.arrow {
+  color: #4CAF50;
+  font-size: 1.2rem;
+  margin: 0 0.5rem;
+}
+
+.time-details {
+  display: flex;
+  gap: 2rem;
+}
+
+.vehicle-info {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: #666;
+}
+
+.card-footer {
+  margin-top: 1.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.price-seats {
+  display: flex;
+  gap: 2rem;
+}
+
+.price-container, .seats-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.price-label, .seats-label {
+  font-size: 0.85rem;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.price {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #4CAF50;
+}
+
+.seats {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.book-button {
+  background-color: #4CAF50;
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.book-button:hover {
+  background-color: #45a049;
+  color: white;
+  text-decoration: none;
+}
+</style>
 
 <script>
   const prix = document.getElementById("max-price");
@@ -155,14 +364,76 @@
   const note = document.getElementById("rating");
   const trie = document.getElementById("sort");
   
-  function clearDisplay() {
+  function clearFilters() {
+      document.getElementById('from').value = '';
+      document.getElementById('to').value = '';
+      document.getElementById('date').value = '';
+      document.getElementById('passengers').value = '1';
       prix.value = '';
       durée.value = '';
       note.value = '';
       trie.value = '';
+      filterTrajets();
   }
-  </script>
+
+  function filterTrajets() {
+      const from = document.getElementById('from').value.toLowerCase();
+      const to = document.getElementById('to').value.toLowerCase();
+      const date = document.getElementById('date').value;
+      const passengers = document.getElementById('passengers').value;
+      const maxPrice = prix.value;
+      const ecoFriendly = document.getElementById('eco-friendly').checked;
+      const maxDuration = durée.value;
+      const rating = note.value;
+      const sort = trie.value;
+
+      const trajets = document.querySelectorAll('.carpool-card');
+      let visibleCount = 0;
+
+      trajets.forEach(trajet => {
+          const trajetDepart = trajet.dataset.depart;
+          const trajetDestination = trajet.dataset.destination;
+          const trajetDate = trajet.dataset.date;
+          const trajetPlaces = parseInt(trajet.dataset.places);
+          const trajetPrix = parseFloat(trajet.dataset.prix);
+
+          const departMatch = !from || trajetDepart.includes(from);
+          const destinationMatch = !to || trajetDestination.includes(to);
+          const dateMatch = !date || trajetDate === date;
+          const placesMatch = !passengers || trajetPlaces >= parseInt(passengers);
+          const priceMatch = !maxPrice || trajetPrix <= parseFloat(maxPrice);
+
+          if (departMatch && destinationMatch && dateMatch && placesMatch && priceMatch) {
+              trajet.style.display = 'block';
+              visibleCount++;
+          } else {
+              trajet.style.display = 'none';
+          }
+      });
+
+      const noResultsMessage = document.querySelector('.alert-info');
+      if (noResultsMessage) {
+          noResultsMessage.style.display = visibleCount === 0 ? 'block' : 'none';
+      }
+
+      if (sort && visibleCount > 0) {
+          const carpoolList = document.getElementById('carpoolList');
+          const trajetsArray = Array.from(trajets).filter(t => t.style.display !== 'none');
+
+          trajetsArray.sort((a, b) => {
+              if (sort === 'prix_croissant') {
+                  return parseFloat(a.dataset.prix) - parseFloat(b.dataset.prix);
+              } else if (sort === 'prix_décroissant') {
+                  return parseFloat(b.dataset.prix) - parseFloat(a.dataset.prix);
+              }
+              return 0;
+          });
+
+          trajetsArray.forEach(trajet => carpoolList.appendChild(trajet));
+      }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-<%- include('partials/footer') %>
 </body>
 </html>
+<%- include('partials/footer') %>
