@@ -100,27 +100,112 @@
             <h2 class="text-center mb-4" style="color: rgb(80, 178, 163);">Réserver une place</h2>
             <div class="text-center">
                 <% if (user.credits >= trajet.prix_par_place) { %>
-                    <form action="/participer/<%= trajet.id %>" method="POST" class="d-inline">
-                        <button type="submit" class="btn btn-success">Réserver ma place</button>
-                    </form>
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmationModal2">
+                        Participer au trajet
+                    </button>
+                    
+                    <!-- Modal de confirmation -->
+                    <div class="modal fade" id="confirmationModal2" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="confirmationModalLabel">Confirmation de participation</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Êtes-vous sûr de vouloir participer à ce trajet ?</p>
+                                    <p>Coût en crédits : <strong><%= trajet.prix_par_place %></strong></p>
+                                    <p>Vos crédits actuels : <strong><%= user.credits %></strong></p>
+                                    <p>Crédits restants après réservation : <strong><%= user.credits - trajet.prix_par_place %></strong></p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                    <form>
+                                        <input type="hidden" name="trajetId" value="<%= trajet.id %>">
+                                        <input type="hidden" name="credits" value="<%= trajet.prix_par_place %>">
+                                        <button type="submit" class="btn btn-success">Confirmer la participation</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 <% } else { %>
-                    <p class="text-danger mb-3">Vous n'avez pas assez de crédits pour ce trajet.</p>
-                    <p class="mb-3">Prix du trajet : <%= trajet.prix_par_place %> € / Vos crédits : <%= user.credits %> €</p>
-                    <a href="/credits" class="btn btn-primary">Recharger mes crédits</a>
+                    <div class="alert alert-warning">
+                        Vous n'avez pas assez de crédits pour participer à ce trajet.
+                        <br>
+                        Crédits nécessaires : <%= trajet.prix_par_place %>
+                        <br>
+                        Vos crédits : <%= user.credits %>
+                    </div>
+                    <a href="/acheter-credits" class="btn btn-primary">Acheter des crédits</a>
                 <% } %>
             </div>
         </div>
     <% } else if (dejaReserve) { %>
         <div class="card p-4 mt-4">
             <div class="text-center">
-                <p class="text-success mb-0">✅ Vous avez déjà réservé une place pour ce trajet !</p>
+                <div class="alert alert-info">
+                    Vous participez déjà à ce trajet !
+                </div>
             </div>
         </div>
     <% } else { %>
         <div class="card p-4 mt-4">
             <div class="text-center">
-                <p class="text-danger mb-0">❌ Désolé, il n'y a plus de places disponibles pour ce trajet.</p>
+                <div class="alert alert-warning">
+                    Désolé, il n'y a plus de places disponibles pour ce trajet.
+                </div>
             </div>
         </div>
     <% } %>
 </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const reservationForm = document.querySelector('#confirmationModal2 form');
+    if (reservationForm) {
+        reservationForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            try {
+                const formData = new FormData(this);
+                const response = await fetch('/reserver-trajet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        trajetId: formData.get('trajetId'),
+                        credits: parseInt(formData.get('credits'))
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Fermer le modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmationModal2'));
+                    modal.hide();
+
+                    // Mettre à jour l'affichage des crédits
+                    const creditsDisplay = document.querySelector('.nav-link .credits-amount');
+                    if (creditsDisplay) {
+                        creditsDisplay.textContent = data.newCredits;
+                    }
+
+                    // Afficher un message de succès
+                    alert('Réservation confirmée avec succès !');
+                    
+                    // Recharger la page pour mettre à jour l'état
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Une erreur est survenue lors de la réservation');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue lors de la réservation');
+            }
+        });
+    }
+});
+</script>

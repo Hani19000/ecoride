@@ -4,6 +4,7 @@ import pg from "pg";
 import bcrypt from "bcrypt"
 import path from "path";
 import session from "express-session";
+import reservationRouter from "./routes/reservation.js";
 
 const saltRounds = 10;
 const app = express();
@@ -38,12 +39,79 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware pour rendre user disponible dans toutes les vues
+app.use((req, res, next) => {
+  // Ajouter user à res.locals pour le rendre disponible dans toutes les vues
+  res.locals.user = req.session.user || null;
+  next();
+});
 
-app.get("/profile", (req, res) => {
-  if (!req.session.user) {
-    return res.redirect("/login");
+// Middleware pour synchroniser les crédits de l'utilisateur
+app.use(async (req, res, next) => {
+  if (req.session?.user?.id) {
+    try {
+      const result = await db.query(`
+        SELECT COALESCE(c.montant, 20) as credits 
+        FROM users u 
+        LEFT JOIN credits c ON u.id = c.user_id 
+        WHERE u.id = $1
+      `, [req.session.user.id]);
+
+      if (result.rows.length > 0) {
+        // Si les crédits n'existent pas encore, les créer
+        if (!result.rows[0].credits) {
+          await db.query(
+            'INSERT INTO credits (user_id, montant) VALUES ($1, 20) ON CONFLICT (user_id) DO NOTHING',
+            [req.session.user.id]
+          );
+          req.session.user.credits = 20;
+        } else {
+          req.session.user.credits = result.rows[0].credits;
+        }
+
+        // Mettre à jour res.locals pour que les crédits soient disponibles dans les vues
+        res.locals.user = req.session.user;
+      }
+    } catch (err) {
+      console.error('Erreur lors de la synchronisation des crédits:', err);
+    }
   }
-  res.render("profile", { user: req.session.user });
+  next();
+});
+
+app.get("/profile", async (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/login');
+  }
+
+  try {
+    // Récupérer les informations de l'utilisateur avec ses crédits
+    const userResult = await db.query(`
+      SELECT u.*, c.montant as credits 
+      FROM users u 
+      LEFT JOIN credits c ON u.id = c.user_id 
+      WHERE u.id = $1
+    `, [req.session.user.id]);
+
+    // Récupérer les véhicules de l'utilisateur
+    const vehiculesResult = await db.query(
+      "SELECT * FROM vehicule WHERE chauffeur_id = $1",
+      [req.session.user.id]
+    );
+
+    // Mettre à jour les crédits dans la session
+    req.session.user.credits = userResult.rows[0].credits || 0;
+
+    res.render("profile", {
+      user: userResult.rows[0],
+      vehicules: vehiculesResult.rows
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération du profil:", error);
+    res.status(500).render("error", {
+      message: "Une erreur est survenue lors de la récupération de votre profil"
+    });
+  }
 });
 
 app.get("/login", (req, res) => {
@@ -83,26 +151,46 @@ app.post("/register", async (req, res) => {
   }
 });
 
-
 app.post("/api/register", async (req, res) => {
   const { username: email, password, nom, prenom, address, departement, ville } = req.body;
   
   try {
-    const checkResult = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+    // Début de la transaction
+    await db.query('BEGIN');
 
-    if (checkResult.rows.length > 0) {
-      return res.status(400).json({ message: "Email already exists. Try logging in." });
-    } else {
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-      await db.query(
-        "INSERT INTO users (email, password, nom, prenom, address, departement, ville) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [email, hashedPassword, nom, prenom, address, departement, ville]
-      );
-      res.status(201).json({ message: "User registered successfully!" });
-    }
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Server error" });
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    // Insérer l'utilisateur
+    const userResult = await db.query(
+      "INSERT INTO users (email, password, nom, prenom, address, departement, ville) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+      [email, hashedPassword, nom, prenom, address, departement, ville]
+    );
+
+    const userId = userResult.rows[0].id;
+
+    // Ajouter les crédits initiaux (20 crédits)
+    await db.query(
+      "INSERT INTO credits (user_id, montant) VALUES ($1, $2)",
+      [userId, 20]
+    );
+
+    // Valider la transaction
+    await db.query('COMMIT');
+
+    // Créer la session avec les crédits
+    req.session.user = {
+      id: userId,
+      email,
+      nom,
+      prenom,
+      credits: 20
+    };
+
+    res.json({ success: true });
+  } catch (error) {
+    await db.query('ROLLBACK');
+    console.error("Erreur lors de l'inscription:", error);
+    res.status(500).json({ success: false, error: "Erreur lors de l'inscription" });
   }
 });
 
@@ -134,126 +222,139 @@ app.post("/login", async (req, res) => {
   }
 });
 
-
-
-
 app.post("/api/login", async (req, res) => {
   const { username: email, password } = req.body;
 
   try {
-    const result = await db.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      const isMatch = await bcrypt.compare(password, user.password);
+    // Récupérer l'utilisateur et ses crédits
+    const result = await db.query(`
+      SELECT u.*, COALESCE(c.montant, 20) as credits 
+      FROM users u 
+      LEFT JOIN credits c ON u.id = c.user_id 
+      WHERE u.email = $1
+    `, [email]);
 
-      if (isMatch) {
-        res.json({ message: "Login successful", user });
-      } else {
-        res.status(401).json({ message: "Incorrect password" });
-      }
-    } else {
-      res.status(404).json({ message: "User not found" });
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Email ou mot de passe incorrect" });
     }
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Server error" });
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password);
+
+    if (!match) {
+      return res.status(401).json({ error: "Email ou mot de passe incorrect" });
+    }
+
+    // S'assurer que l'utilisateur a des crédits
+    if (!user.credits) {
+      // Insérer les crédits initiaux si nécessaire
+      await db.query(
+        'INSERT INTO credits (user_id, montant) VALUES ($1, 20) ON CONFLICT (user_id) DO NOTHING',
+        [user.id]
+      );
+      user.credits = 20;
+    }
+
+    // Créer la session avec les informations de l'utilisateur, y compris les crédits
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      nom: user.nom,
+      prenom: user.prenom,
+      credits: user.credits
+    };
+
+    // Mettre à jour les crédits dans la session
+    req.session.save((err) => {
+      if (err) {
+        console.error("Erreur lors de la sauvegarde de la session:", err);
+      }
+      res.json({ success: true });
+    });
+  } catch (error) {
+    console.error("Erreur lors de la connexion:", error);
+    res.status(500).json({ error: "Erreur lors de la connexion" });
   }
 });
-
 
 // ✅ Route pour afficher la liste des trajets
 app.get("/trajets", async (req, res) => {
   try {
-    let query = `
+    console.log("Requête SQL:", `
       SELECT t.*, v.marque, v.modele, v.couleur, u.nom, u.prenom
-      FROM trajet t 
+      FROM trajet t
       LEFT JOIN vehicule v ON t.vehicule_id = v.id
       LEFT JOIN users u ON t.chauffeur_id = u.id
       WHERE 1=1
-    `;
-    const params = [];
-    let paramCount = 1;
+     ORDER BY t.date_du_trajet DESC, t.heure_depart ASC`);
+    console.log("Paramètres:", []);
 
-    // Recherche par lieu de départ
-    if (req.query.depart) {
-      query += ` AND LOWER(t.lieu_depart) LIKE LOWER($${paramCount})`;
-      params.push(`%${req.query.depart}%`);
-      paramCount++;
-    }
+    const result = await db.query(`
+      SELECT t.*, v.marque, v.modele, v.couleur, u.nom, u.prenom
+      FROM trajet t
+      LEFT JOIN vehicule v ON t.vehicule_id = v.id
+      LEFT JOIN users u ON t.chauffeur_id = u.id
+      WHERE 1=1
+     ORDER BY t.date_du_trajet DESC, t.heure_depart ASC`
+    );
 
-    // Recherche par destination
-    if (req.query.destination) {
-      query += ` AND LOWER(t.destination) LIKE LOWER($${paramCount})`;
-      params.push(`%${req.query.destination}%`);
-      paramCount++;
-    }
-
-    // Recherche par date
-    if (req.query.date) {
-      query += ` AND t.date_du_trajet = $${paramCount}`;
-      params.push(req.query.date);
-      paramCount++;
-    }
-
-    // Tri par date et heure
-    query += ` ORDER BY t.date_du_trajet DESC, t.heure_depart ASC`;
-
-    console.log("Requête SQL:", query);
-    console.log("Paramètres:", params);
-
-    const result = await db.query(query, params);
     res.render("trajets", { 
       trajets: result.rows,
-      search: {
-        depart: req.query.depart || '',
-        destination: req.query.destination || '',
-        date: req.query.date || ''
-      }
+      // user est maintenant automatiquement disponible via res.locals
+      searchParams: req.query
     });
-  } catch (err) {
-    console.error("Erreur lors de la récupération des trajets:", err);
-    res.status(500).render("error", {
-      message: "Une erreur est survenue lors de la recherche des trajets."
+  } catch (error) {
+    console.error("Erreur serveur:", error);
+    res.status(500).render("error", { 
+      message: "Une erreur est survenue lors de la récupération des trajets" 
     });
   }
 });
 
-// ✅ Route pour afficher le formulaire de création de trajet
 app.get("/trajet/creer", async (req, res) => {
-  const vehicule_id = req.query.vehicule_id;
-  
-  if (!vehicule_id) {
-    return res.redirect('/profile');
+  if (!req.session.user) {
+    return res.redirect('/login');
   }
 
   try {
-    const result = await db.query(
-      "SELECT * FROM vehicule WHERE id = $1",
-      [vehicule_id]
+    // Récupérer les informations du véhicule
+    const vehiculeId = req.query.vehicule_id;
+    const vehiculeResult = await db.query(
+      'SELECT * FROM vehicule WHERE id = $1 AND chauffeur_id = $2',
+      [vehiculeId, req.session.user.id]
     );
 
-    if (result.rows.length === 0) {
-      return res.redirect('/profile');
+    if (vehiculeResult.rows.length === 0) {
+      return res.status(404).render('error', { 
+        message: 'Véhicule non trouvé ou vous n\'êtes pas autorisé à créer un trajet avec ce véhicule' 
+      });
     }
 
-    res.render("creer-trajet", { vehicule: result.rows[0] });
-  } catch (err) {
-    console.error("Erreur lors de la récupération du véhicule:", err);
-    res.status(500).send("Erreur lors de la récupération du véhicule");
+    const vehicule = vehiculeResult.rows[0];
+
+    res.render('creer-trajet', {
+      user: req.session.user,
+      vehicule: vehicule
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des informations du véhicule:', error);
+    res.status(500).render('error', { 
+      message: 'Une erreur est survenue lors de la récupération des informations du véhicule' 
+    });
   }
 });
 
 // ✅ Route pour créer un nouveau trajet
 app.post("/trajet/creer", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Vous devez être connecté pour créer un trajet" });
+  }
+
   const { 
     vehicule_id, lieu_depart, destination, date_du_trajet, 
     heure_depart, duree_du_trajet, nombre_de_places, prix_par_place 
   } = req.body;
   const chauffeur_id = req.session?.user?.id;
-
-  if (!chauffeur_id) {
-    return res.status(401).json({ error: "Vous devez être connecté pour créer un trajet" });
-  }
 
   try {
     const result = await db.query(
@@ -491,12 +592,12 @@ app.get("/trajet/:id", async (req, res, next) => {
     const trajet = trajetResult.rows[0];
     console.log("Données du trajet:", trajet);
 
-    // Vérifier si l'utilisateur actuel a déjà réservé ce trajet
     let dejaReserve = false;
+    // Vérifier si l'utilisateur actuel a déjà réservé ce trajet
     if (req.session?.user?.id) {
       const reservationResult = await db.query(
-        `SELECT * FROM reservation 
-         WHERE trajet_id = $1 AND passager_id = $2`,
+        `SELECT * FROM reservations 
+         WHERE trajet_id = $1 AND user_id = $2`,
         [trajetId, req.session.user.id]
       );
       dejaReserve = reservationResult.rows.length > 0;
@@ -505,10 +606,11 @@ app.get("/trajet/:id", async (req, res, next) => {
     // Compter le nombre de places déjà réservées
     const reservationsResult = await db.query(
       `SELECT COUNT(*) as nombre_reservations 
-       FROM reservation 
+       FROM reservations
        WHERE trajet_id = $1`,
       [trajetId]
     );
+
     const placesReservees = parseInt(reservationsResult.rows[0].nombre_reservations) || 0;
     const placesRestantes = trajet.nombre_de_places - placesReservees;
 
@@ -535,7 +637,6 @@ app.get('/details/:id', async (req, res) => {
         u.nom as chauffeur_nom,
         u.prenom as chauffeur_prenom,
         u.email as chauffeur_email,
-        u.telephone as chauffeur_telephone,
         u.note as chauffeur_note,
         v.marque,
         v.modele,
@@ -567,7 +668,7 @@ app.get('/details/:id', async (req, res) => {
     let dejaReserve = false;
     if (req.session.user) {
       const reservationResult = await db.query(
-        'SELECT * FROM reservations WHERE trajet_id = $1 AND passager_id = $2',
+        'SELECT * FROM reservations WHERE trajet_id = $1 AND user_id = $2',
         [req.params.id, req.session.user.id]
       );
       dejaReserve = reservationResult.rows.length > 0;
@@ -618,7 +719,7 @@ app.post("/participer/:id", async (req, res) => {
       // Mise à jour des crédits et places disponibles
       await db.query("UPDATE users SET credits = credits - $1 WHERE id = $2", [trajet.prix_par_place, userId]);
       await db.query("UPDATE trajet SET places = places - 1 WHERE id = $1", [req.params.id]);
-      await db.query("INSERT INTO reservations (trajet_id, passager_id) VALUES ($1, $2)", [req.params.id, userId]);
+      await db.query("INSERT INTO reservations (trajet_id, user_id) VALUES ($1, $2)", [req.params.id, userId]);
 
       res.redirect("/index");
   } catch (error) {
@@ -658,6 +759,17 @@ app.get("/trajet/:id", async (req, res, next) => {
   }
 });
 
+// Route de déconnexion
+app.get('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Erreur lors de la déconnexion:', err);
+      return res.status(500).send('Erreur lors de la déconnexion');
+    }
+    res.redirect('/');
+  });
+});
+
 // Gestionnaire d'erreur 404 pour les routes non trouvées
 app.use((req, res, next) => {
   res.status(404).render("error", { 
@@ -673,6 +785,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+app.use('/', reservationRouter);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

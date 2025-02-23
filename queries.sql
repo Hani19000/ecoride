@@ -47,5 +47,33 @@ ALTER TABLE trajet
 ADD COLUMN heure_depart TIME,
 ADD COLUMN heure_arrivee TIME;
 
+-- Supprimer la table credits si elle existe déjà
+DROP TABLE IF EXISTS credits CASCADE;
+
+-- Recréer la table credits
+CREATE TABLE credits (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE,
+    montant INTEGER NOT NULL DEFAULT 20,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Insérer les crédits pour tous les utilisateurs existants
+INSERT INTO credits (user_id, montant)
+SELECT id, 20
+FROM users
+ON CONFLICT (user_id) DO NOTHING;
+
+CREATE TABLE reservations (
+    id SERIAL PRIMARY KEY,
+    trajet_id INTEGER REFERENCES trajet(id),
+    user_id INTEGER REFERENCES users(id),
+    date_reservation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    credits_utilises INTEGER NOT NULL,
+    statut VARCHAR(20) DEFAULT 'confirmé',
+    CONSTRAINT fk_trajet FOREIGN KEY (trajet_id) REFERENCES trajet(id),
+    CONSTRAINT fk_user_reservation FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 app.use(express.static("/"));
 app.use(express.json()); 
