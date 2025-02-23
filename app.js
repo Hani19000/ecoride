@@ -453,8 +453,14 @@ app.post('/trajet/creer', async (req, res) => {
 
 // Vérification de la réponse HTTP pour comprendre pourquoi "Trajet non trouvé" s'affiche
 
-app.get("/trajet/:id", async (req, res) => {
-  const trajetId = req.params.id;
+app.get("/trajet/:id", async (req, res, next) => {
+  // Vérifier que l'ID est composé uniquement de chiffres
+  if (!/^\d+$/.test(req.params.id)) {
+    // Si ce n'est pas le cas, passer au middleware suivant
+    return next();
+  }
+
+  const trajetId = parseInt(req.params.id, 10);
   console.log("🔍 ID reçu pour le trajet :", trajetId);
 
   try {
@@ -483,7 +489,7 @@ app.get("/trajet/:id", async (req, res) => {
     }
 
     const trajet = trajetResult.rows[0];
-    console.log("Données du trajet:", trajet); // Pour le débogage
+    console.log("Données du trajet:", trajet);
 
     // Vérifier si l'utilisateur actuel a déjà réservé ce trajet
     let dejaReserve = false;
@@ -621,8 +627,13 @@ app.post("/participer/:id", async (req, res) => {
   }
 });
 
-app.get("/trajet/:id", async (req, res) => {
-  const trajetId = req.params.id;
+app.get("/trajet/:id", async (req, res, next) => {
+  // Vérification de l'ID pour s'assurer qu'il s'agit bien d'un entier
+  if (!/^\d+$/.test(req.params.id)) {
+    return next(); // Passer au middleware suivant si l'ID est invalide
+  }
+
+  const trajetId = parseInt(req.params.id, 10);
 
   try {
     const trajetResult = await db.query(
@@ -636,31 +647,32 @@ app.get("/trajet/:id", async (req, res) => {
     );
 
     if (trajetResult.rows.length === 0) {
-      return res.status(404).send("Trajet non trouvé");
+      return res.status(404).render("error", { message: "Trajet non trouvé" });
     }
 
     const trajet = trajetResult.rows[0];
     res.render("trajet-details", { trajet });
   } catch (err) {
     console.error("Erreur lors de la récupération des détails du trajet:", err);
-    res.status(500).send("Erreur lors de la récupération des détails du trajet");
+    res.status(500).render("error", { message: "Erreur lors de la récupération des détails du trajet" });
   }
 });
 
 // Gestionnaire d'erreur 404 pour les routes non trouvées
 app.use((req, res, next) => {
-  res.status(404).render('error', { 
-    message: "La page que vous recherchez n'existe pas."
+  res.status(404).render("error", { 
+    message: "La page que vous recherchez n'existe pas." 
   });
 });
 
 // Gestionnaire d'erreur global
 app.use((err, req, res, next) => {
   console.error("Erreur serveur:", err);
-  res.status(500).render('error', { 
-    message: "Une erreur inattendue s'est produite. Veuillez réessayer plus tard."
+  res.status(500).render("error", { 
+    message: "Une erreur inattendue s'est produite. Veuillez réessayer plus tard." 
   });
 });
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
