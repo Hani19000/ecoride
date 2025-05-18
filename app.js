@@ -39,6 +39,9 @@ app.use((req, res, next) => {
   next();
 });
 
+
+
+
 // Middleware pour rendre user disponible dans toutes les vues
 app.use((req, res, next) => {
   // Ajouter user à res.locals pour le rendre disponible dans toutes les vues
@@ -58,16 +61,19 @@ app.use(async (req, res, next) => {
       `, [req.session.user.id]);
 
       if (result.rows.length > 0) {
+        const userCredits = result.rows[0].credits;
+      
         // Si les crédits n'existent pas encore, les créer
-        if (!result.rows[0].credits) {
+        if (userCredits === null || userCredits === undefined) {
           await db.query(
             'INSERT INTO credits (user_id, montant) VALUES ($1, 20) ON CONFLICT (user_id) DO NOTHING',
             [req.session.user.id]
           );
           req.session.user.credits = 20;
         } else {
-          req.session.user.credits = result.rows[0].credits;
+          req.session.user.credits = userCredits;
         }
+      
 
         // Mettre à jour res.locals pour que les crédits soient disponibles dans les vues
         res.locals.user = req.session.user;
