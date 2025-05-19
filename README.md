@@ -26,6 +26,7 @@ Outils de déploiement: Fly.io
 
 Installation
 Avant de commencer, assurez-vous d'avoir installé:
+
 NodeJS v22.11.0
 psql (PostgreSQL) 15.4
 Git v2.46.1
