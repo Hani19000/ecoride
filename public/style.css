@@ -465,11 +465,12 @@ gap: 10rem;
     transform: scale(1.1);
 }
 
-.container{
-display: grid;
-grid-template-columns: 1fr 2fr;
-grid-template-rows: 1fr 1fr;
-gap: 30rem;
+
+
+.wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /*END FOOTER*/
@@ -542,3 +543,4 @@ gap: 30rem;
         margin-bottom: 2rem;
       }
 } 
+

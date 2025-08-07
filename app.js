@@ -32,6 +32,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false, httpOnly: true, maxAge: 3600000 }
 }));
+
 // Sync crédits + exposer user aux vues
 app.use(async (req, res, next) => {
   try {
@@ -55,11 +56,10 @@ app.use(async (req, res, next) => {
     }
   } catch (e) {
     console.error("Erreur sync crédits:", e);
-  } finally {
-    // ✅ toujours exposer user (ou null) aux vues EJS
-    res.locals.user = req.session?.user || null;
-    next();
   }
+  // Toujours exposer user (ou null) aux vues EJS
+  res.locals.user = req.session?.user || null;
+  next();
 });
 
 import reservationRouter from "./routes/reservation.js";
@@ -73,15 +73,7 @@ app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 
-
-
-
-app.use(session({
-  secret: "tonSecretUltraSecurisé", // Change par une clé secrète forte
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, maxAge: 3600000 } // 1h
-}));
+// (Supprimé la double déclaration de session ici)
 app.use((req, res, next) => {
   console.log("📌 Session actuelle :", req.session);
   next();
@@ -106,6 +98,40 @@ mongoose.connect("mongodb+srv://hani:19000@cluster0.0qgaf9b.mongodb.net/", {
   console.error("❌ Erreur MongoDB :", err);
 });
 
+app.get('/', (req, res) => {
+  res.render('index', { user: req.session.user });
+});
+
+app.get('/contact', (req, res) => {
+  res.render('contact', { user: req.session.user });
+});
+
+
+app.get('/historique', isAuthenticated, async (req, res) => {
+  try {
+    const user = req.session.user;
+
+    const reservationsResult = await db.query(`
+      SELECT 
+        t.lieu_depart, 
+        t.destination, 
+        t.date_du_trajet, 
+        t.heure_depart, 
+        r.credits_utilises, 
+        r.statut,
+        r.trajet_id
+      FROM reservations r
+      JOIN trajet t ON r.trajet_id = t.id
+      WHERE r.user_id = $1
+      ORDER BY r.created_at DESC
+    `, [user.id]);
+
+    res.render('historique', { reservations: reservationsResult.rows, user });
+  } catch (err) {
+    console.error("❌ Erreur chargement historique :", err);
+    res.status(500).render('error', { message: 'Erreur chargement historique' });
+  }
+});
 
 
 
@@ -152,40 +178,37 @@ app.use(async (req, res, next) => {
   next();
 });
 
-app.get("/profile", async (req, res) => {
-  if (!req.session.user) {
-    return res.redirect('/login');
-  }
-
+app.get("/profile", isAuthenticated, async (req, res) => {
   try {
-    // Récupérer les informations de l'utilisateur avec ses crédits
-    const userResult = await db.query(`
-      SELECT u.*, c.montant as credits 
-      FROM users u 
-      LEFT JOIN credits c ON u.id = c.user_id 
-      WHERE u.id = $1
-    `, [req.session.user.id]);
+    const userId = req.session.user.id;
 
-    // Récupérer les véhicules de l'utilisateur
-    const vehiculesResult = await db.query(
-      "SELECT * FROM vehicule WHERE chauffeur_id = $1",
-      [req.session.user.id]
+    const userCreditsResult = await db.query(
+      "SELECT montant FROM credits WHERE user_id = $1",
+      [userId]
     );
+    const credits = userCreditsResult.rows[0]?.montant || 0;
 
-    // Mettre à jour les crédits dans la session
-    req.session.user.credits = userResult.rows[0].credits || 0;
+const reservationsResult = await db.query(`
+  SELECT r.id AS reservation_id, r.credits_utilises, r.statut,
+         t.lieu_depart, t.destination, t.date_du_trajet, t.heure_depart
+  FROM reservations r
+  JOIN trajet t ON r.trajet_id = t.id
+  WHERE r.user_id = $1
+  ORDER BY t.date_du_trajet DESC
+`, [userId]);
+
 
     res.render("profile", {
-      user: userResult.rows[0],
-      vehicules: vehiculesResult.rows
+      user: req.session.user,
+      credits,
+      reservations: reservationsResult.rows
     });
   } catch (error) {
-    console.error("Erreur lors de la récupération du profil:", error);
-    res.status(500).render("error", {
-      message: "Une erreur est survenue lors de la récupération de votre profil"
-    });
+    console.error("Erreur chargement profil :", error);
+    res.status(500).send("Erreur serveur");
   }
 });
+
 
 app.get("/login", (req, res) => {
   res.render("login.ejs");
@@ -987,3 +1010,35 @@ app.use('/', reservationRouter);
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
+  const { trajet_id } = req.body;
+  const user_id = req.session.user.id;
+
+  try {
+    const trajet = await db.query(
+      'SELECT conducteur_id FROM trajet WHERE id = $1',
+      [trajet_id]
+    );
+
+    if (trajet.rows.length === 0 || trajet.rows[0].conducteur_id !== user_id) {
+      return res.status(403).send('Non autorisé à annuler ce trajet.');
+    }
+
+    // Supprimer les réservations liées au trajet
+    await db.query('DELETE FROM reservations WHERE trajet_id = $1', [trajet_id]);
+
+    // Supprimer le trajet
+    await db.query('DELETE FROM trajet WHERE id = $1', [trajet_id]);
+
+    res.redirect('/historique');
+  } catch (err) {
+    console.error('Erreur lors de l’annulation :', err);
+    res.status(500).send('Erreur lors de l’annulation du trajet.');
+  }
+});
+
+
+
+
+

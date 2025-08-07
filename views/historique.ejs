@@ -1,0 +1,98 @@
+<%
+  let roles = [];
+  try {
+    roles = JSON.parse(user.role);
+  } catch (e) {
+    roles = [];
+  }
+%>
+<%- include('partials/header') %>
+
+<style>
+  body {
+    background: #00ffbf;
+    font-family: 'Poppins', sans-serif;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .historique-container {
+    max-width: 950px;
+    margin: 60px auto;
+    padding: 2rem;
+    background: rgb(80, 178, 163);
+    border-radius: 1.5rem;
+    box-shadow: 0 8px 24px rgba(0, 200, 255, 0.2);
+  }
+  h2 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #000000;
+    font-weight: 700;
+  }
+  .reservation-card {
+    background: #f7fdfa;
+    border-left: 6px solid #00ffbf;
+    padding: 1.2rem 1.5rem;
+    border-radius: 1rem;
+    margin-bottom: 1.2rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s;
+  }
+  .reservation-card:hover {
+    transform: translateY(-3px);
+  }
+  .reservation-card h5 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #007a74;
+    font-weight: 600;
+  }
+  .reservation-card p {
+    margin: 6px 0;
+    font-size: 1rem;
+    color: #444;
+  }
+  .statut {
+    display: inline-block;
+    background: #00ffbf;
+    color: white;
+    font-size: 0.9rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-top: 8px;
+    font-weight: 500;
+  }
+</style>
+
+<div class="wrapper">
+  <div class="historique-container">
+    <h2>🕓 Historique de vos trajets</h2>
+
+    <% if (reservations.length === 0) { %>
+      <p style="text-align: center; color: #555;">Vous n'avez encore effectué aucune réservation.</p>
+    <% } else { %>
+<% reservations.forEach(r => { %>
+  <div class="reservation-card">
+    <h5><%= r.lieu_depart %> ➜ <%= r.destination %></h5>
+    <p><strong>Date :</strong> <%= new Date(r.date_du_trajet).toLocaleDateString() %></p>
+    <p><strong>Heure :</strong> <%= r.heure_depart %></p>
+    <p><strong>Crédits utilisés :</strong> <%= r.credits_utilises %> crédits</p>
+    <span class="statut"><%= r.statut %></span>
+
+    <% if (roles.includes('chauffeur')) { %>
+
+      <form action="/annuler-trajet" method="POST" onsubmit="return confirm('Voulez-vous vraiment annuler ce trajet ?');">
+        <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
+        <button type="submit" class="btn btn-danger btn-sm mt-2">❌ Annuler</button>
+      </form>
+    <% } %>
+  </div>
+<% }) %>
+
+
+    <% } %>
+  </div>
+</div>
+
+
+<%- include('partials/footer') %>

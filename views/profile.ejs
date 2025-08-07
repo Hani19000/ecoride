@@ -12,7 +12,7 @@
       background-color: #00ffbf;
     }
     .profile-header {
-      background: linear-gradient(135deg, #007bff, #6610f2);
+      background: linear-gradient(135deg, #06df8c, #35a181);
       height: 200px;
       position: relative;
       border-radius: 0 0 20px 20px;
@@ -49,6 +49,22 @@
     .list-group-item .badge.bg-danger {
       background-color: #dc3545 !important; 
     }
+
+.btn{
+  background-color: #00ffbf;
+  color: #000000;
+  border-radius: 25px;
+
+}
+.btn-primary {
+            background-color: #00ffbf;
+            border: none;
+        }
+    
+.btn-primary:hover {
+            background-color: #00ffbf;
+        }
+
   </style>
 </head>
 <body>
@@ -62,20 +78,31 @@
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
             <li class="nav-item">
-              <a class="nav-link active" aria-current="page" href="/index.html">Acceuil</a>
+              <a class="nav-link active" aria-current="page" href="/">Acceuil</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" href="/trajets">covoiturage</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/contact.html">contact</a>
+              <a class="nav-link" href="/contact">contact</a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/login">connexion</a>
-            </li>
+          <% if (user) { %>
             <li class="nav-item">
               <a class="nav-link" href="/profile">profile</a>
             </li>
+            <li class="nav-item">
+              <span class="nav-link">
+                <i class="fas fa-coins"></i> <%= user.credits %> crédits
+              </span>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/logout">Déconnexion</a>
+            </li>
+          <% } else { %>
+            <li class="nav-item">
+              <a class="nav-link" href="/login">Connexion</a>
+            </li>
+          <% } %>
         </div>
       </div>
   </nav>
@@ -116,102 +143,132 @@
         <div class="card p-3">
           <h5>Derniers trajets</h5>
           <ul class="list-group">
-            <% if (user.trips && user.trips.length > 0) { %>
-              <% user.trips.forEach(function(trip) { %>
-                <li class="list-group-item">
-                  <%= trip.departure %> → <%= trip.arrival %>
-                  <% if (trip.status === 'Terminé') { %>
-                    <span class="badge bg-success">Terminé</span>
-                  <% } else if (trip.status === 'En attente') { %>
-                    <span class="badge bg-warning">En attente</span>
-                  <% } else if (trip.status === 'Annulé') { %>
-                    <span class="badge bg-danger">Annulé</span>
-                  <% } else { %>
-                    <span class="badge bg-secondary"><%= trip.status %></span>
-                  <% } %>
-                </li>
-              <% }); %>
-            <% } else { %>
-              <li class="list-group-item">Aucun trajet récent</li>
-            <% } %>
-          </ul>
-        </div>
-      </div>
-    </div>
+<!-- Derniers trajets dynamiques -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card p-3">
+      <h5>Derniers trajets</h5>
 
-    <!-- Section Paramètres du compte avec système de crédits et rôle -->
-    <div class="row mt-4">
-      <div class="col-12">
-        <div class="card p-3">
-          <h5>Paramètres du compte</h5>
-          <p><strong>Crédits :</strong> <%= user.credits || 20 %></p>
-          <form id="profileForm">
-            <!-- Sélection du rôle -->
-            <div class="mb-3">
-              <label class="form-label">Sélectionnez votre rôle :</label>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="roleChauffeur" name="role[]" value="chauffeur" <%= (user.role && user.role.includes('chauffeur')) ? 'checked' : '' %>>
-                <label class="form-check-label" for="roleChauffeur">Chauffeur</label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="rolePassager" name="role[]" value="passager" <%= (user.role && user.role.includes('passager')) ? 'checked' : '' %>>
-                <label class="form-check-label" for="rolePassager">Passager</label>
-              </div>
-            </div>
-          </form>
+      <% if (reservations.length === 0) { %>
+        <p class="text-center text-muted">Aucun trajet réservé pour l’instant.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="table table-bordered mt-4 align-middle shadow-sm rounded">
+            <thead>
+              <tr>
+                <th scope="col">🛫 Départ</th>
+                <th scope="col">🛬 Destination</th>
+                <th scope="col">📅 Date</th>
+                <th scope="col">🕒 Heure</th>
+                <th scope="col">💳 Crédits</th>
+                <th scope="col">✅ Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% reservations.forEach(res => { %>
+                <tr>
+                  <td><strong><%= res.lieu_depart %></strong></td>
+                  <td><strong><%= res.destination %></strong></td>
+                  <td><%= new Date(res.date_du_trajet).toLocaleDateString() %></td>
+                  <td><%= res.heure_depart %></td>
+                  <td>
+                    <span class="badge rounded-pill text-bg-success px-3 py-2">
+                      <%= res.credits_utilises %> crédits
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-info text-dark px-3 py-2">
+                      <%= res.statut %>
+                    </span>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
         </div>
+      <% } %>
+    </div>
+  </div>
+  <div class="text-center mt-4">
+        <a href="/historique" class="btn btn-outline-success">
+          📋 Voir l’historique complet
+        </a>
       </div>
-    </div>
+</div>
 
-<!-- Informations chauffeur à fournir si le rôle Chauffeur est sélectionné -->
-<div id="chauffeurDetails" class="card p-3 <%= (user.role && user.role.includes('chauffeur')) ? '' : 'd-none' %>">
-  <div class="card p-3">
-  <form id="vehicleForm" action="/details" method="POST">
-  <h6>Informations Véhicule(s)</h6>
-  <div class="mb-3">
-    <label for="plaque_immatriculation" class="form-label">Plaque d'immatriculation</label>
-    <input type="text" class="form-control" id="plaque" name="plaque_immatriculation" placeholder="AB-123-CD"  required>
-  </div>
-  <div class="mb-3">
-    <label for="date_premiere_immatriculation" class="form-label">Date de première immatriculation</label>
-    <input type="date" class="form-control" id="dateImmat" name="date_premiere_immatriculation"  required>
-  </div>
-  <div class="row">
-    <div class="col-md-4 mb-3">
-      <label for="marque" class="form-label">Marque</label>
-      <input type="text" class="form-control" id="marque" name="marque" placeholder="Peugeot">
+<!-- Section Paramètres du compte avec système de crédits et rôle -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card p-3">
+      <h5>Paramètres du compte</h5>
+      <p><strong>Crédits :</strong> <%= user.credits || 20 %></p>
+      <form id="profileForm">
+        <!-- Sélection du rôle -->
+        <div class="mb-3">
+          <label class="form-label">Sélectionnez votre rôle :</label>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="roleChauffeur" name="role[]" value="chauffeur" <%= (user.role && user.role.includes('chauffeur')) ? 'checked' : '' %>>
+            <label class="form-check-label" for="roleChauffeur">Chauffeur</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="rolePassager" name="role[]" value="passager" <%= (user.role && user.role.includes('passager')) ? 'checked' : '' %>>
+            <label class="form-check-label" for="rolePassager">Passager</label>
+          </div>
+        </div>
+      </form>
     </div>
-    <div class="col-md-4 mb-3">
-      <label for="modele" class="form-label">Modèle</label>
-      <input type="text" class="form-control" id="modele" name="modele" placeholder="208">
-    </div>
-    <div class="col-md-4 mb-3">
-      <label for="couleur" class="form-label">Couleur</label>
-      <input type="text" class="form-control" id="couleur" name="couleur" placeholder="Bleu">
-    </div>
-  </div>
-  <div class="mb-3">
-    <label for="places" class="form-label">Nombre de places disponibles</label>
-    <input type="number" class="form-control" id="places" name="nombre_places_disponibles" min="1" placeholder="4">
-  </div>
-  <h6>Préférences</h6>
-  <div class="mb-3"> 
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" id="prefFumeur" name="preferences" value="fumeur"
-        <%= (user.preferences && user.preferences.includes('fumeur')) ? 'checked' : '' %>>
-      <label class="form-check-label" for="prefFumeur">Fumeur</label>
-    </div>
-    
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" id="prefAnimal" name="preferences" value="animal"
-        <%= (user.preferences && user.preferences.includes('animal')) ? 'checked' : '' %>>
-      <label class="form-check-label" for="prefAnimal">Animaux</label>
-    </div>
-  </div>
-  <button type="submit" class="btn btn-primary">Enregistrer</button>
-  </form>
   </div>
 </div>
+
+<!-- Formulaire véhicule toujours visible si role chauffeur -->
+<div id="chauffeurDetails" class="card p-3 <%= (user.role && user.role.includes('chauffeur')) ? '' : 'd-none' %>">
+  <div class="card p-3">
+    <form id="vehicleForm" action="/details" method="POST">
+      <h6>Informations Véhicule(s)</h6>
+      <div class="mb-3">
+        <label for="plaque_immatriculation" class="form-label">Plaque d'immatriculation</label>
+        <input type="text" class="form-control" id="plaque" name="plaque_immatriculation" placeholder="AB-123-CD" required>
+      </div>
+      <div class="mb-3">
+        <label for="date_premiere_immatriculation" class="form-label">Date de première immatriculation</label>
+        <input type="date" class="form-control" id="dateImmat" name="date_premiere_immatriculation" required>
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="marque" class="form-label">Marque</label>
+          <input type="text" class="form-control" id="marque" name="marque" placeholder="Peugeot">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="modele" class="form-label">Modèle</label>
+          <input type="text" class="form-control" id="modele" name="modele" placeholder="208">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="couleur" class="form-label">Couleur</label>
+          <input type="text" class="form-control" id="couleur" name="couleur" placeholder="Bleu">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label for="places" class="form-label">Nombre de places disponibles</label>
+        <input type="number" class="form-control" id="places" name="nombre_places_disponibles" min="1" placeholder="4">
+      </div>
+      <h6>Préférences</h6>
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="prefFumeur" name="preferences" value="fumeur"
+            <%= (user.preferences && user.preferences.includes('fumeur')) ? 'checked' : '' %>>
+          <label class="form-check-label" for="prefFumeur">Fumeur</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="prefAnimal" name="preferences" value="animal"
+            <%= (user.preferences && user.preferences.includes('animal')) ? 'checked' : '' %>>
+          <label class="form-check-label" for="prefAnimal">Animaux</label>
+        </div>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </form>
+</div>
+
+
+
 
 
     

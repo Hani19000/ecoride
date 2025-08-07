@@ -15,6 +15,7 @@
 
 <main class="container mt-5">
 <% if (query?.error) { %>
+<div class="wrapper">
 
   <div class="alert alert-danger">
     <% if (req.query.error === 'trajet_introuvable') { %>Trajet introuvable.<% } %>
@@ -158,7 +159,6 @@
           <input type="hidden" name="trajetId" value="<%= trajet.id %>">
         </div>
 
-        <!-- Footer -->
         <div class="modal-footer text-dark">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
           <button type="submit" class="btn btn-success">Confirmer la participation</button>
@@ -205,6 +205,7 @@
 </div>
 
 
-
+</div>
 </main>
+<%- include('partials/footer') %>
 </script>
