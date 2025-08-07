@@ -47,33 +47,70 @@ ALTER TABLE trajet
 ADD COLUMN heure_depart TIME,
 ADD COLUMN heure_arrivee TIME;
 
--- Supprimer la table credits si elle existe déjà
-DROP TABLE IF EXISTS credits CASCADE;
+BEGIN;
 
--- Recréer la table credits
-CREATE TABLE credits (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL UNIQUE,
-    montant INTEGER NOT NULL DEFAULT 20,
-    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+
+CREATE TABLE IF NOT EXISTS credits (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  montant INTEGER NOT NULL DEFAULT 20,
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Insérer les crédits pour tous les utilisateurs existants
-INSERT INTO credits (user_id, montant)
-SELECT id, 20
-FROM users
-ON CONFLICT (user_id) DO NOTHING;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='users' AND column_name='credits'
+  ) THEN
+    INSERT INTO credits (user_id, montant)
+    SELECT id, COALESCE(credits, 20) FROM users
+    ON CONFLICT (user_id) DO UPDATE SET montant = EXCLUDED.montant;
 
-CREATE TABLE reservations (
-    id SERIAL PRIMARY KEY,
-    trajet_id INTEGER REFERENCES trajet(id),
-    user_id INTEGER REFERENCES users(id),
-    date_reservation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    credits_utilises INTEGER NOT NULL,
-    statut VARCHAR(20) DEFAULT 'confirmé',
-    CONSTRAINT fk_trajet FOREIGN KEY (trajet_id) REFERENCES trajet(id),
-    CONSTRAINT fk_user_reservation FOREIGN KEY (user_id) REFERENCES users(id)
-);
+    ALTER TABLE users DROP COLUMN IF EXISTS credits;
+  END IF;
+END $$;
+
+ALTER TABLE IF NOT EXISTS reservations
+  ADD COLUMN IF NOT EXISTS places INTEGER NOT NULL DEFAULT 1;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name='reservations' AND constraint_name='uniq_user_trajet'
+  ) THEN
+    ALTER TABLE reservations
+      ADD CONSTRAINT uniq_user_trajet UNIQUE (trajet_id, user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trajet' AND column_name='places') 
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trajet' AND column_name='nombre_de_places') THEN
+    ALTER TABLE trajet RENAME COLUMN places TO nombre_de_places;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION create_credits_row() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO credits(user_id, montant)
+  VALUES (NEW.id, 20)
+  ON CONFLICT (user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_users_after_insert_credits ON users;
+
+CREATE TRIGGER trg_users_after_insert_credits
+AFTER INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION create_credits_row();
+
+
+
+COMMIT;
 
 app.use(express.static("/"));
 app.use(express.json()); 

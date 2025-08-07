@@ -1,10 +1,15 @@
+import dotenv from 'dotenv';
 import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
 import bcrypt from "bcrypt"
 import path from "path";
 import session from "express-session";
-import reservationRouter from "./routes/reservation.js";
+import mongoose from "mongoose";
+import User from './models/user.js';
+
+
+dotenv.config();
 
 const saltRounds = 10;
 const app = express();
@@ -21,13 +26,56 @@ db.connect();
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(session({
+  secret: "tonSecretUltraSecurisé",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, httpOnly: true, maxAge: 3600000 }
+}));
+// Sync crédits + exposer user aux vues
+app.use(async (req, res, next) => {
+  try {
+    if (req.session?.user?.id) {
+      const creditRes = await db.query(
+        'SELECT montant FROM credits WHERE user_id = $1',
+        [req.session.user.id]
+      );
+      if (creditRes.rowCount > 0) {
+        req.session.user.credits = creditRes.rows[0].montant;
+      } else {
+        // filet de sécurité : crée la ligne si absente
+        await db.query(
+          `INSERT INTO credits (user_id, montant)
+           VALUES ($1, 20)
+           ON CONFLICT (user_id) DO NOTHING`,
+          [req.session.user.id]
+        );
+        req.session.user.credits = 20;
+      }
+    }
+  } catch (e) {
+    console.error("Erreur sync crédits:", e);
+  } finally {
+    // ✅ toujours exposer user (ou null) aux vues EJS
+    res.locals.user = req.session?.user || null;
+    next();
+  }
+});
+
+import reservationRouter from "./routes/reservation.js";
+app.use('/reservation', reservationRouter);
+
+import contactRouter from './routes/contact.js';
+app.use('/contact', contactRouter);
+
+
 app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
-app.use((req, res, next) => {
-  console.log("Session actuelle :", req.session);
-  next();
-});
+
+
+
+
 app.use(session({
   secret: "tonSecretUltraSecurisé", // Change par une clé secrète forte
   resave: false,
@@ -37,6 +85,25 @@ app.use(session({
 app.use((req, res, next) => {
   console.log("📌 Session actuelle :", req.session);
   next();
+});
+
+function isAuthenticated(req, res, next) {
+  if (req.session && req.session.user) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+app.get("/confirmation", isAuthenticated, (req, res) => {
+  res.render("confirmation", { user: req.session.user });
+});
+
+mongoose.connect("mongodb+srv://hani:19000@cluster0.0qgaf9b.mongodb.net/", {
+}).then(() => {
+  console.log("✅ Connecté à MongoDB");
+}).catch((err) => {
+  console.error("❌ Erreur MongoDB :", err);
 });
 
 
@@ -159,44 +226,118 @@ app.post("/register", async (req, res) => {
 
 app.post("/api/register", async (req, res) => {
   const { username: email, password, nom, prenom, address, departement, ville } = req.body;
-  
+
   try {
-    // Début de la transaction
     await db.query('BEGIN');
 
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-    
-    // Insérer l'utilisateur
-    const userResult = await db.query(
-      "INSERT INTO users (email, password, nom, prenom, address, departement, ville) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-      [email, hashedPassword, nom, prenom, address, departement, ville]
+    const exists = await db.query("SELECT 1 FROM users WHERE email = $1", [email]);
+    if (exists.rowCount) {
+      await db.query('ROLLBACK');
+      return res.status(400).send("Email déjà utilisé.");
+    }
+
+    const hashed = await bcrypt.hash(password, saltRounds);
+
+    const u = await db.query(
+      `INSERT INTO users (email, password, nom, prenom, address, departement, ville)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, email, nom, prenom`,
+      [email, hashed, nom, prenom, address, departement, ville]
     );
 
-    const userId = userResult.rows[0].id;
+    const userId = u.rows[0].id;
 
-    // Ajouter les crédits initiaux (20 crédits)
+    // Crédits initiaux
     await db.query(
-      "INSERT INTO credits (user_id, montant) VALUES ($1, $2)",
-      [userId, 20]
+      `INSERT INTO credits (user_id, montant)
+       VALUES ($1, 20)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [userId]
     );
 
-    // Valider la transaction
     await db.query('COMMIT');
 
-    // Créer la session avec les crédits
-    req.session.user = {
-      id: userId,
-      email,
-      nom,
-      prenom,
-      credits: 20
-    };
+    // ✅ Regénérer la session (hygiène) puis l’enregistrer AVANT redirection
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error("Erreur regenerate session:", err);
+        return res.status(500).send("Erreur session");
+      }
 
-    res.json({ success: true });
+      req.session.user = {
+        id: userId,
+        email: u.rows[0].email,
+        nom: u.rows[0].nom,
+        prenom: u.rows[0].prenom,
+        credits: 20
+      };
+
+      req.session.save((err) => {
+        if (err) {
+          console.error("Erreur save session:", err);
+          return res.status(500).send("Erreur session");
+        }
+        return res.redirect("/profile");
+      });
+    });
+
+  } catch (err) {
+    console.error('Erreur inscription:', err);
+    try { await db.query('ROLLBACK'); } catch {}
+    return res.status(500).send('Erreur lors de l’inscription');
+  }
+});
+
+
+
+
+app.get('/api/me', async (req, res) => {
+  if (!req.session?.user?.id) return res.json({ user: null });
+  const r = await db.query('SELECT montant FROM credits WHERE user_id=$1', [req.session.user.id]);
+  const credits = r.rowCount ? r.rows[0].montant : 20;
+  res.json({ user: { ...req.session.user, credits } });
+});
+
+
+app.get("/profile", async (req, res) => {
+  if (!req.session.user) {
+    return res.redirect('/login');
+  }
+
+  try {
+    // Récupérer les infos utilisateur + crédits
+    const userRes = await db.query(`
+      SELECT u.*, COALESCE(c.montant, 0) AS credits
+      FROM users u
+      LEFT JOIN credits c ON c.user_id = u.id
+      WHERE u.id = $1
+    `, [req.session.user.id]);
+
+    if (userRes.rowCount === 0) {
+      return res.status(404).render("error", { message: "Utilisateur introuvable" });
+    }
+
+    const userRow = userRes.rows[0];
+
+    // Mettre à jour la session et res.locals
+    req.session.user.credits = userRow.credits;
+    res.locals.user = { ...req.session.user, credits: userRow.credits };
+
+    // Récupérer les véhicules
+    const vehiculesRes = await db.query(
+      "SELECT * FROM vehicule WHERE chauffeur_id = $1",
+      [userRow.id]
+    );
+
+    res.render("profile", {
+      user: userRow,
+      vehicules: vehiculesRes.rows
+    });
   } catch (error) {
-    await db.query('ROLLBACK');
-    console.error("Erreur lors de l'inscription:", error);
-    res.status(500).json({ success: false, error: "Erreur lors de l'inscription" });
+    console.error("Erreur lors de la récupération du profil:", error);
+    res.status(500).render("error", {
+      message: "Une erreur est survenue lors de la récupération de votre profil"
+    });
   }
 });
 
@@ -204,29 +345,49 @@ app.post("/login", async (req, res) => {
   const { username: email, password } = req.body;
 
   try {
-    const result = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+    const result = await db.query(
+      `SELECT u.*, COALESCE(c.montant, 20) as credits
+       FROM users u
+       LEFT JOIN credits c ON u.id = c.user_id
+       WHERE email = $1`,
+      [email]
+    );
 
     if (result.rows.length === 0) {
-      return res.send("Utilisateur non trouvé");
+      return res.render("error", { message: "Utilisateur non trouvé" });
     }
 
     const user = result.rows[0];
-
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
-      return res.send("Mot de passe incorrect");
+      return res.render("error", { message: "Mot de passe incorrect" });
     }
 
-    // ✅ Stocker l'utilisateur dans la session
-    req.session.user = user;
-    console.log("Utilisateur connecté :", req.session.user);
+    // Si pas de ligne dans credits, on en crée une
+    await db.query(
+      `INSERT INTO credits (user_id, montant)
+       VALUES ($1, 20)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id]
+    );
 
-    res.redirect("/profile");
+    // Mettre à jour les crédits en session
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      nom: user.nom,
+      prenom: user.prenom,
+      credits: user.credits
+    };
+
+    return res.redirect("/profile");
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Erreur serveur");
+    console.error("Erreur lors du login :", err);
+    return res.render("error", { message: "Erreur lors de la connexion" });
   }
 });
+
 
 app.post("/api/login", async (req, res) => {
   const { username: email, password } = req.body;
@@ -620,12 +781,14 @@ app.get("/trajet/:id", async (req, res, next) => {
     const placesReservees = parseInt(reservationsResult.rows[0].nombre_reservations) || 0;
     const placesRestantes = trajet.nombre_de_places - placesReservees;
 
-    res.render("details", { 
-      trajet,
-      user: req.session?.user || null,
-      dejaReserve,
-      placesRestantes
-    });
+res.render("details", {
+  trajet,
+  user: req.session?.user || null,
+  dejaReserve,
+  placesRestantes,
+  query: req.query
+});
+
   } catch (err) {
     console.error("Erreur lors de la récupération des détails du trajet:", err);
     res.render("error", { 
@@ -693,46 +856,74 @@ app.get('/details/:id', async (req, res) => {
   }
 });
 
-app.post("/participer/:id", async (req, res) => {
-  if (!req.session.user) {
-      return res.redirect("/login");
+
+app.post("/reserver-trajet", async (req, res) => {
+  const { trajetId } = req.body;
+  const user = req.session?.user;
+
+  if (!user) {
+    return res.redirect("/login");
   }
 
-  const userId = req.session.user.id;
   try {
-      const trajetResult = await db.query("SELECT places, prix_par_place, chauffeur_id FROM trajet WHERE id = $1", [req.params.id]);
-      if (trajetResult.rows.length === 0) {
-          return res.status(404).send("Trajet non trouvé");
-      }
+    const trajetResult = await db.query("SELECT * FROM trajet WHERE id = $1", [trajetId]);
+    const trajet = trajetResult.rows[0];
 
-      const trajet = trajetResult.rows[0];
-      if (trajet.places <= 0) {
-          return res.send("Désolé, il n'y a plus de place disponible.");
-      }
+    if (!trajet) {
+      return res.redirect(`/trajets?error=trajet_introuvable`);
+    }
 
-      const userResult = await db.query("SELECT credits FROM users WHERE id = $1", [userId]);
-      const userCredits = userResult.rows[0].credits;
+    if (trajet.chauffeur_id === user.id) {
+      return res.redirect(`/trajets?error=propre_trajet`);
+    }
 
-      if (userCredits < trajet.prix_par_place) {
-          return res.send("Vous n'avez pas assez de crédits.");
-      }
+    const credResult = await db.query("SELECT montant FROM credits WHERE user_id = $1", [user.id]);
+    const credits = credResult.rows[0]?.montant || 0;
 
-      // Double confirmation
-      if (!req.body.confirmation) {
-          return res.render("confirmation", { trajet, user: req.session.user });
-      }
+    const prix = parseFloat(trajet.prix_par_place);
+    const creditsUtilises = Math.round(prix);
 
-      // Mise à jour des crédits et places disponibles
-      await db.query("UPDATE users SET credits = credits - $1 WHERE id = $2", [trajet.prix_par_place, userId]);
-      await db.query("UPDATE trajet SET places = places - 1 WHERE id = $1", [req.params.id]);
-      await db.query("INSERT INTO reservations (trajet_id, user_id) VALUES ($1, $2)", [req.params.id, userId]);
+    if (credits < creditsUtilises) {
+      return res.redirect(`/trajets?error=credits_insuffisants`);
+    }
 
-      res.redirect("/index");
-  } catch (error) {
-      console.error("Erreur lors de la réservation :", error);
-      res.status(500).send("Erreur serveur");
+    // Empêcher une double réservation
+    const dejaReserve = await db.query(
+      "SELECT 1 FROM reservations WHERE trajet_id = $1 AND user_id = $2",
+      [trajetId, user.id]
+    );
+    if (dejaReserve.rowCount > 0) {
+      return res.redirect(`/trajets?error=deja_reserve`);
+    }
+
+    // Debug log
+    console.log("🚀 Réservation avec :", {
+      trajetId,
+      userId: user.id,
+      creditsUtilises
+    });
+
+    await db.query(
+      `INSERT INTO reservations (trajet_id, user_id, credits_utilises, statut)
+       VALUES ($1, $2, $3, $4)`,
+      [trajetId, user.id, creditsUtilises, 'confirmé']
+    );
+
+    await db.query(
+      "UPDATE credits SET montant = montant - $1 WHERE user_id = $2",
+      [creditsUtilises, user.id]
+    );
+
+    res.redirect("/confirmation");
+  } catch (err) {
+    console.error("❌ Erreur lors de la réservation :", err);
+    res.status(500).send("Une erreur est survenue lors de la réservation.");
   }
 });
+
+
+
+
 
 app.get("/trajet/:id", async (req, res, next) => {
   // Vérification de l'ID pour s'assurer qu'il s'agit bien d'un entier

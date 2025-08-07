@@ -1,0 +1,104 @@
+<%- include('partials/header') %>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    background: #00ffbf;
+    font-family: 'Poppins', Arial, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .confirmation-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 10px;
+  }
+  .confirmation-card {
+    background: #fff;
+    border-radius: 1.5rem;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    padding: 3rem 2rem;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    animation: fadeIn 0.8s ease-in-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .confirmation-icon {
+    font-size: 4.5rem;
+    color: #2ecc71;
+    margin-bottom: 1.2rem;
+  }
+  .confirmation-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #2c7a4d;
+    margin-bottom: 0.5rem;
+  }
+  .confirmation-text {
+    font-size: 1.1rem;
+    color: #444;
+    margin-bottom: 2.2rem;
+    font-weight: 500;
+  }
+  .confirmation-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-eco {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 2rem;
+    padding: 0.7rem 2.1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background 0.2s, transform 0.2s;
+    text-decoration: none;
+  }
+  .btn-eco:hover {
+    background-color: #23963b;
+    transform: translateY(-2px);
+    color: #fff;
+  }
+  @media (max-width: 600px) {
+    .confirmation-card {
+      padding: 2rem 1rem;
+    }
+    .confirmation-title {
+      font-size: 1.4rem;
+    }
+    .confirmation-icon {
+      font-size: 3.5rem;
+    }
+  }
+</style>
+
+<div class="confirmation-wrapper">
+  <div class="confirmation-card">
+    <div class="confirmation-icon">
+      <i class="bi bi-check-circle-fill"></i>
+    </div>
+    <div class="confirmation-title">Réservation confirmée !</div>
+    <div class="confirmation-text">
+      Merci pour votre confiance.<br>
+      Votre participation au trajet a bien été enregistrée.<br>
+      Bon voyage avec <span style="color:#28a745;font-weight:600;">EcoRide</span> !
+    </div>
+    <div class="confirmation-buttons">
+      <a href="/" class="btn-eco">Accueil</a>
+      <a href="/profile" class="btn-eco">Mes réservations</a>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
