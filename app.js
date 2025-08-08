@@ -6,7 +6,7 @@ import bcrypt from "bcrypt"
 import path from "path";
 import session from "express-session";
 import mongoose from "mongoose";
-import User from './models/user.js';
+
 
 
 dotenv.config();
@@ -110,39 +110,73 @@ app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/demarrer-trajet', isAuthenticated, async (req, res) => {
+// Démarrer un trajet
+// Démarrer un trajet
+app.post("/demarrer-trajet", isAuthenticated, async (req, res) => {
+  const { trajet_id } = req.body;
+  try {
+    const r = await db.query(
+      `UPDATE trajet SET statut = 'en_cours' WHERE id = $1 AND chauffeur_id = $2 AND statut <> 'termine'`,
+      [trajet_id, req.session.user.id]
+    );
+    console.log('demarrer rowCount=', r.rowCount);
+    if (!r.rowCount) return res.redirect("/mes-trajets?error=Rien à démarrer");
+    res.redirect("/mes-trajets?success=Trajet démarré");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/mes-trajets?error=Impossible de démarrer");
+  }
+});
+
+
+// Terminer un trajet
+app.post("/terminer-trajet", isAuthenticated, async (req, res) => {
   const { trajet_id } = req.body;
   const userId = req.session.user.id;
 
   try {
-    await db.query(
-      `UPDATE trajet SET statut = 'en_cours'
-       WHERE id = $1 AND conducteur_id = $2 AND statut = 'a_venir'`,
-      [trajet_id, userId]
+    // 1) Vérif que le trajet existe + appartient au chauffeur connecté
+    const tRes = await db.query(
+      `SELECT id, statut, chauffeur_id
+         FROM trajet
+        WHERE id = $1`,
+      [trajet_id]
     );
-    res.redirect('/mes-trajets?success=trajet_demarre');
+
+    if (!tRes.rowCount) {
+      return res.redirect("/mes-trajets?error=Trajet introuvable");
+    }
+
+    const t = tRes.rows[0];
+
+    if (t.chauffeur_id !== userId) {
+      return res.redirect("/mes-trajets?error=Tu n'es pas le chauffeur de ce trajet");
+    }
+
+    if (t.statut !== 'en_cours') {
+      return res.redirect("/mes-trajets?error=Le trajet n'est pas en cours");
+    }
+
+    // 2) Mise à jour simple (sans ended_at si la colonne n'existe pas chez toi)
+const r = await db.query(
+  `UPDATE trajet SET statut = 'termine', ended_at = NOW() WHERE id = $1`,
+  [trajet_id]
+);
+
+
+    if (!r.rowCount) {
+      return res.redirect("/mes-trajets?error=Aucune ligne mise à jour");
+    }
+
+    return res.redirect("/mes-trajets?success=Trajet terminé");
   } catch (err) {
-    console.error(err);
-    res.redirect('/mes-trajets?error=erreur_demarrage');
+    console.error("terminer-trajet ERROR:", err);
+    return res.redirect("/mes-trajets?error=Impossible de terminer (voir logs serveur)");
   }
 });
 
-app.post('/terminer-trajet', isAuthenticated, async (req, res) => {
-  const { trajet_id } = req.body;
-  const userId = req.session.user.id;
 
-  try {
-    await db.query(
-      `UPDATE trajet SET statut = 'termine'
-       WHERE id = $1 AND conducteur_id = $2 AND statut = 'en_cours'`,
-      [trajet_id, userId]
-    );
-    res.redirect('/mes-trajets?success=trajet_termine');
-  } catch (err) {
-    console.error(err);
-    res.redirect('/mes-trajets?error=erreur_terminer');
-  }
-});
+
 
 
 // Annuler une réservation (par le passager) + REMBOURSEMENT
@@ -197,6 +231,205 @@ app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
   }
 });
 
+app.post("/avis", isAuthenticated, async (req, res) => {
+  const { trajet_id, chauffeur_id, note, commentaire } = req.body;
+  const passager_id = req.session.user.id;
+
+  // Sécurité basique
+  const intNote = parseInt(note, 10);
+  if (Number.isNaN(intNote) || intNote < 1 || intNote > 5) {
+    return res.status(400).send("Note invalide");
+  }
+  if (intNote <= 2 && (!commentaire || !commentaire.trim())) {
+    return res.status(400).send("Commentaire requis si la note ≤ 2");
+  }
+
+  try {
+    // Vérifier que l'utilisateur a bien participé ET que le trajet est terminé
+    const check = await db.query(`
+      SELECT 1 
+      FROM reservations r
+      JOIN trajet t ON t.id = r.trajet_id
+      WHERE r.trajet_id = $1
+        AND r.user_id   = $2
+        AND t.statut    = 'termine'
+      LIMIT 1
+    `, [trajet_id, passager_id]);
+
+    if (!check.rowCount) {
+      return res.status(403).send("Vous ne pouvez pas laisser un avis pour ce trajet.");
+    }
+
+    // Empêcher le doublon (1 avis par passager/trajet)
+    const exists = await Avis.exists({ trajetId: Number(trajet_id), passagerId: passager_id });
+    if (exists) {
+      return res.redirect("/historique?error=avis_deja_envoye");
+    }
+
+    await Avis.create({
+      trajetId: Number(trajet_id),
+      passagerId: passager_id,
+      chauffeurId: Number(chauffeur_id),
+      note: intNote,
+      commentaire: commentaire || "",
+      statut_validation: "en_attente"
+    });
+
+    res.redirect("/historique?success=avis_envoye");
+  } catch (err) {
+    console.error("Erreur enregistrement avis :", err);
+    res.status(500).send("Erreur lors de l'envoi de l'avis.");
+  }
+});
+
+
+
+// Valider un avis et mettre à jour les crédits
+app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
+  const { avis_id, action } = req.body; // "approuver" | "refuser"
+
+  try {
+    const avis = await Avis.findOne({ _id: avis_id, statut_validation: "en_attente" }).lean();
+    if (!avis) {
+      return res.status(404).send("Avis introuvable ou déjà traité.");
+    }
+
+    if (action === "approuver") {
+      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "approuve" } });
+
+      // Créditer le chauffeur uniquement si note >= 4
+      if (avis.note >= 4) {
+        await db.query(
+          `UPDATE credits SET montant = montant + 2 WHERE user_id = $1`,
+          [avis.chauffeurId]
+        );
+      }
+    } else if (action === "refuser") {
+      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
+    } else {
+      return res.status(400).send("Action invalide");
+    }
+
+    res.redirect("/admin/avis?success=avis_traite");
+  } catch (err) {
+    console.error("Erreur validation avis :", err);
+    res.status(500).send("Erreur lors de la validation de l'avis.");
+  }
+});
+
+app.post("/reservation/:id/valider", isAuthenticated, async (req, res) => {
+  const reservationId = req.params.id;
+  try {
+    await db.query('BEGIN');
+
+    const resa = await db.query(`
+      SELECT r.id, r.user_id, r.trajet_id, r.credits_utilises,
+             t.chauffeur_id
+      FROM reservations r
+      JOIN trajet t ON t.id = r.trajet_id
+      WHERE r.id = $1 AND r.user_id = $2
+      FOR UPDATE
+    `, [reservationId, req.session.user.id]);
+
+    if (!resa.rowCount) {
+      await db.query('ROLLBACK');
+      return res.redirect("/validations?error=Reservation introuvable");
+    }
+
+    const row = resa.rows[0];
+
+    // Marquer la validation
+    await db.query(`
+      UPDATE reservations
+         SET validation_statut = 'valide',
+             validation_at = NOW()
+       WHERE id = $1
+    `, [reservationId]);
+
+    // Créditer le chauffeur immédiatement (release payout)
+    await db.query(`
+      UPDATE credits SET montant = montant + $1
+       WHERE user_id = $2
+    `, [row.credits_utilises, row.chauffeur_id]);
+
+    // (Option simple : on insère un payout "released" pour historique)
+    await db.query(`
+      INSERT INTO payouts (reservation_id, chauffeur_id, montant, statut, resolved_at)
+      VALUES ($1, $2, $3, 'released', NOW())
+    `, [row.id, row.chauffeur_id, row.credits_utilises]);
+
+    await db.query('COMMIT');
+    res.redirect("/validations?success=Validation enregistrée");
+  } catch (e) {
+    console.error("POST /reservation/:id/valider", e);
+    try { await db.query('ROLLBACK'); } catch {}
+    res.redirect("/validations?error=Erreur validation");
+  }
+});
+
+app.post("/reservation/:id/signaler", isAuthenticated, async (req, res) => {
+  const reservationId = req.params.id;
+  const { note, commentaire } = req.body;
+
+  try {
+    if (!note || isNaN(parseInt(note)) || parseInt(note) < 1 || parseInt(note) > 5) {
+      return res.redirect("/validations?error=Note invalide");
+    }
+    if (!commentaire || !commentaire.trim()) {
+      return res.redirect("/validations?error=Commentaire requis");
+    }
+
+    await db.query('BEGIN');
+
+    const resa = await db.query(`
+      SELECT r.id, r.user_id, r.trajet_id, r.credits_utilises,
+             t.chauffeur_id
+      FROM reservations r
+      JOIN trajet t ON t.id = r.trajet_id
+      WHERE r.id = $1 AND r.user_id = $2
+      FOR UPDATE
+    `, [reservationId, req.session.user.id]);
+
+    if (!resa.rowCount) {
+      await db.query('ROLLBACK');
+      return res.redirect("/validations?error=Reservation introuvable");
+    }
+    const row = resa.rows[0];
+
+    // Marquer la validation comme signalée
+    await db.query(`
+      UPDATE reservations
+         SET validation_statut = 'signale',
+             validation_comment = $2,
+             validation_at = NOW()
+       WHERE id = $1
+    `, [reservationId, commentaire]);
+
+    // Créer l'avis en attente (Mongo)
+    await Avis.create({
+      trajetId: row.trajet_id,
+      passagerId: row.user_id,
+      chauffeurId: row.chauffeur_id,
+      note: parseInt(note),
+      commentaire,
+      statut_validation: "en_attente"
+    });
+
+    // Mettre le payout "en attente"
+    await db.query(`
+      INSERT INTO payouts (reservation_id, chauffeur_id, montant, statut)
+      VALUES ($1, $2, $3, 'held')
+    `, [row.id, row.chauffeur_id, row.credits_utilises]);
+
+    await db.query('COMMIT');
+    res.redirect("/validations?success=Signalement enregistré, un employé va examiner votre avis");
+  } catch (e) {
+    console.error("POST /reservation/:id/signaler", e);
+    try { await db.query('ROLLBACK'); } catch {}
+    res.redirect("/validations?error=Erreur signalement");
+  }
+});
+
 
 import reservationRouter from "./routes/reservation.js";
 app.use('/reservation', reservationRouter);
@@ -204,37 +437,166 @@ app.use('/reservation', reservationRouter);
 import contactRouter from './routes/contact.js';
 app.use('/contact', contactRouter);
 
+import Avis from "./models/avis.js";
+
 
 app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 
 
-app.get('/mes-trajets', isAuthenticated, async (req, res) => {
+app.get("/validations", isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { rows } = await db.query(`
+      SELECT r.id AS reservation_id,
+             r.trajet_id,
+             r.credits_utilises,
+             r.validation_statut,
+             r.validation_comment,
+             t.lieu_depart,
+             t.destination,
+             t.date_du_trajet,
+             t.heure_depart,
+             t.statut AS trajet_statut,
+             t.chauffeur_id
+      FROM reservations r
+      JOIN trajet t ON t.id = r.trajet_id
+      WHERE r.user_id = $1
+        AND t.statut = 'termine'
+        AND r.validation_statut = 'en_attente'
+      ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
+    `, [userId]);
+
+    res.render("validations", { items: rows, user: req.session.user });
+  } catch (e) {
+    console.error("GET /validations:", e);
+    res.status(500).render("error", { message: "Impossible de charger les validations." });
+  }
+});
+
+
+// Liste des avis en attente
+app.get("/admin/avis", isAuthenticated, async (req, res) => {
+  try {
+    const avis = await Avis.find({ statut_validation: "en_attente" }).sort({ createdAt: -1 }).lean();
+    res.render("admin-avis", { avis, user: req.session.user });
+  } catch (e) {
+    console.error("GET /admin/avis", e);
+    res.status(500).render("error", { message: "Impossible de charger les avis." });
+  }
+});
+
+// Valider / Refuser un avis
+app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
+  const { avis_id, action } = req.body;
+  try {
+    const avis = await Avis.findOne({ _id: avis_id, statut_validation: "en_attente" }).lean();
+    if (!avis) return res.redirect("/admin/avis?error=Avis introuvable");
+
+    if (action === "approuver") {
+      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "approuve" } });
+
+      // libérer les payouts en "held"
+      await db.query(`
+        UPDATE payouts
+           SET statut = 'released', resolved_at = NOW()
+         WHERE chauffeur_id = $1 AND statut = 'held'
+           AND reservation_id IN (
+             SELECT r.id FROM reservations r WHERE r.trajet_id = $2
+           )
+      `, [avis.chauffeurId, avis.trajetId]);
+
+      // créditer le chauffeur pour ces payouts
+      const rel = await db.query(`
+        SELECT COALESCE(SUM(montant),0) AS total
+          FROM payouts
+         WHERE chauffeur_id = $1 AND statut = 'released'
+           AND reservation_id IN (
+             SELECT r.id FROM reservations r WHERE r.trajet_id = $2
+           )
+      `, [avis.chauffeurId, avis.trajetId]);
+
+      const total = rel.rows[0].total || 0;
+      if (total > 0) {
+        await db.query(`UPDATE credits SET montant = montant + $1 WHERE user_id = $2`, [total, avis.chauffeurId]);
+      }
+
+    } else if (action === "refuser") {
+      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
+      // tu peux aussi annuler les payouts si tu veux :
+      // await db.query(`UPDATE payouts SET statut='canceled', resolved_at=NOW() WHERE ...`);
+    }
+
+    res.redirect("/admin/avis?success=Avis traité");
+  } catch (e) {
+    console.error("POST /admin/avis/valider", e);
+    res.redirect("/admin/avis?error=Erreur traitement");
+  }
+});
+
+
+
+
+app.get('/historique', isAuthenticated, async (req, res) => {
   try {
     const userId = req.session.user.id;
 
-    const { rows: trajets } = await db.query(`
+    // Trajets réservés par l'utilisateur + infos chauffeur + statut du trajet
+    const { rows } = await db.query(`
       SELECT 
-        t.id AS trajet_id,
+        r.id                  AS reservation_id,
+        r.trajet_id,
+        r.credits_utilises,
+        r.statut              AS reservation_statut,
         t.lieu_depart,
         t.destination,
         t.date_du_trajet,
         t.heure_depart,
-        t.prix_par_place,
-        t.nombre_de_places,
-        t.statut,  -- ✅ On ajoute le statut ici
-        COALESCE(COUNT(r.id), 0)   AS places_reservees,
-        COALESCE(COUNT(r.id), 0)   AS nb_reservations
-      FROM trajet t
-      LEFT JOIN reservations r ON r.trajet_id = t.id
-      WHERE t.chauffeur_id = $1
-      GROUP BY 
-        t.id, t.lieu_depart, t.destination, 
-        t.date_du_trajet, t.heure_depart, 
-        t.prix_par_place, t.nombre_de_places, t.statut -- ✅ On groupe aussi par statut
+        t.statut              AS trajet_statut,
+        t.chauffeur_id
+      FROM reservations r
+      JOIN trajet t ON t.id = r.trajet_id
+      WHERE r.user_id = $1
       ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
     `, [userId]);
+
+    // Pour chaque réservation, vérifier s'il y a déjà un avis en Mongo
+    const withAvis = await Promise.all(rows.map(async (r) => {
+      const exist = await Avis.exists({ trajetId: r.trajet_id, passagerId: userId });
+      return { ...r, avis_deja_donne: !!exist };
+    }));
+
+    res.render('historique', { reservations: withAvis, user: req.session.user });
+  } catch (err) {
+    console.error("❌ Erreur chargement historique :", err);
+    res.status(500).render('error', { message: 'Erreur chargement historique' });
+  }
+});
+
+app.get('/mes-trajets', isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+
+// /mes-trajets
+const { rows: trajets } = await db.query(`
+  SELECT 
+    t.id AS trajet_id,
+    t.lieu_depart,
+    t.destination,
+    t.date_du_trajet,
+    t.heure_depart,
+    t.prix_par_place,
+    t.nombre_de_places,
+    t.statut,                                -- <--- IMPORTANT
+    COALESCE(COUNT(r.id), 0) AS nb_reservations
+  FROM trajet t
+  LEFT JOIN reservations r ON r.trajet_id = t.id
+  WHERE t.chauffeur_id = $1
+  GROUP BY t.id, t.lieu_depart, t.destination, t.date_du_trajet, t.heure_depart, t.prix_par_place, t.nombre_de_places, t.statut
+  ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
+`, [userId]);
+
 
     return res.render('mes-trajets', {
       user: req.session.user,
@@ -283,30 +645,22 @@ app.get('/contact', (req, res) => {
 
 
 app.get('/historique', isAuthenticated, async (req, res) => {
-  try {
-    const user = req.session.user;
+  const userId = req.session.user.id;
+  
+  // Exemple : si tu stockes les rôles dans la session
+  const roles = req.session.user.roles || [];
 
-    const reservationsResult = await db.query(`
-      SELECT 
-        t.lieu_depart, 
-        t.destination, 
-        t.date_du_trajet, 
-        t.heure_depart, 
-        r.credits_utilises, 
-        r.statut,
-        r.trajet_id
-      FROM reservations r
-      JOIN trajet t ON r.trajet_id = t.id
-      WHERE r.user_id = $1
-      ORDER BY r.created_at DESC
-    `, [user.id]);
+  const { rows: reservations } = await db.query(`
+    SELECT * FROM reservations
+    WHERE user_id = $1
+  `, [userId]);
 
-    res.render('historique', { reservations: reservationsResult.rows, user });
-  } catch (err) {
-    console.error("❌ Erreur chargement historique :", err);
-    res.status(500).render('error', { message: 'Erreur chargement historique' });
-  }
+  res.render('historique', {
+    reservations,
+    roles // <-- On envoie à la vue
+  });
 });
+
 
 
 
@@ -1180,10 +1534,21 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Historique des trajets créés par le chauffeur connecté
-// Liste des trajets créés par l'utilisateur connecté (pas de notion de rôle)
-// Liste des trajets créés par l'utilisateur connecté
+async function majStatutsAutomatique() {
+  try {
+    await db.query(`
+      UPDATE trajet
+      SET statut = 'termine'
+      WHERE statut != 'termine'
+      AND (date_du_trajet + heure_depart::interval + interval '1 hour') < NOW()
+    `);
+    console.log("✅ Statuts trajets mis à jour automatiquement");
+  } catch (err) {
+    console.error("Erreur mise à jour statuts:", err);
+  }
+}
 
+setInterval(majStatutsAutomatique, 5 * 60 * 1000);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

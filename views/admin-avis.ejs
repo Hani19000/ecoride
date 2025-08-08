@@ -1,0 +1,30 @@
+<%- include('partials/header', { title: 'Gestion des avis', user: user }) %>
+<main class="container" style="padding: 120px 16px 32px;">
+  <h1 class="mb-4">Avis en attente</h1>
+
+  <% if (!avis || avis.length === 0) { %>
+    <div class="alert alert-info">Aucun avis en attente.</div>
+  <% } %>
+
+  <% avis.forEach(a => { %>
+    <div class="card mb-3">
+      <div class="card-body">
+        <p class="mb-1"><strong>Trajet ID:</strong> <%= a.trajetId %></p>
+        <p class="mb-1"><strong>Chauffeur ID:</strong> <%= a.chauffeurId %></p>
+        <p class="mb-1"><strong>Passager ID:</strong> <%= a.passagerId %></p>
+        <p class="mb-1"><strong>Note:</strong> <%= a.note %>/5</p>
+        <p class="mb-3"><strong>Commentaire:</strong><br><%= a.commentaire || '—' %></p>
+
+        <form action="/admin/avis/valider" method="POST" class="d-inline">
+          <input type="hidden" name="avis_id" value="<%= a._id %>">
+          <button type="submit" name="action" value="approuver" class="btn btn-success btn-sm">Approuver</button>
+        </form>
+        <form action="/admin/avis/valider" method="POST" class="d-inline">
+          <input type="hidden" name="avis_id" value="<%= a._id %>">
+          <button type="submit" name="action" value="refuser" class="btn btn-danger btn-sm">Refuser</button>
+        </form>
+      </div>
+    </div>
+  <% }) %>
+</main>
+<%- include('partials/footer') %>

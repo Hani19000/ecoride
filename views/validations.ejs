@@ -1,0 +1,34 @@
+<%- include('partials/header', { title: 'Validations', user }) %>
+<main class="container" style="padding:120px 16px 32px;">
+  <h1 class="mb-4">Valider mes covoit’ terminés</h1>
+
+  <% if (query?.success) { %><div class="alert alert-success"><%= query.success %></div><% } %>
+  <% if (query?.error) { %><div class="alert alert-danger"><%= query.error %></div><% } %>
+
+  <% if (!items || items.length === 0) { %>
+    <div class="alert alert-info">Aucun trajet à valider.</div>
+  <% } %>
+
+  <% items.forEach(it => { %>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5><%= it.lieu_depart %> → <%= it.destination %></h5>
+        <p class="mb-2"><strong>Date :</strong> <%= new Date(it.date_du_trajet).toLocaleDateString() %> à <%= (it.heure_depart || '').toString().slice(0,5) %></p>
+        <p class="mb-3"><strong>Crédits utilisés :</strong> <%= it.credits_utilises %></p>
+
+        <div class="d-flex gap-2">
+          <form action="/reservation/<%= it.reservation_id %>/valider" method="POST">
+            <button class="btn btn-success btn-sm" type="submit">Tout s’est bien passé ✅</button>
+          </form>
+
+          <form action="/reservation/<%= it.reservation_id %>/signaler" method="POST" class="d-flex gap-2">
+            <input type="number" name="note" min="1" max="5" placeholder="Note (1-5)" required class="form-control form-control-sm" style="width:120px;">
+            <input type="text" name="commentaire" placeholder="Expliquez le problème" required class="form-control form-control-sm" style="min-width:220px;">
+            <button class="btn btn-outline-danger btn-sm" type="submit">Signaler un problème ⚠️</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% }) %>
+</main>
+<%- include('partials/footer') %>

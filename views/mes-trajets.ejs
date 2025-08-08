@@ -36,15 +36,37 @@
     </div>
 
     <div class="row g-4">
-      <% trajets.forEach(t => { 
-            const dateObj = new Date(t.date_du_trajet);
-            const dateStr = dateObj.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
-            const [h, m] = (t.heure_depart || '00:00').split(':').map(Number);
-            const fullDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), h, m);
-            const isPast = fullDate.getTime() < Date.now();
-      %>
-      <div class="col-12 col-sm-6 col-lg-4 trajet-col"
-           data-status="<%= isPast ? 'past' : 'upcoming' %>">
+<% trajets.forEach(t => { 
+    const dateObj = new Date(t.date_du_trajet);
+    const dateStr = dateObj.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+    const [h, m] = (t.heure_depart || '00:00').split(':').map(Number);
+    const fullDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), h, m);
+
+    const now = Date.now();
+    const startTime = fullDate.getTime();
+    const endTime = startTime + 60 * 60 * 1000; // 1h après départ
+
+    let statutTrajet;
+
+    // 🔹 On tient compte du statut DB en priorité
+    if (t.statut === 'termine') {
+      statutTrajet = 'past'; // Directement passé si terminé
+    } 
+    else if (now < startTime) {
+      statutTrajet = 'upcoming'; // À venir
+    } 
+    else if (now >= startTime && now <= endTime) {
+      statutTrajet = 'in_progress'; // En cours
+    } 
+    else {
+      statutTrajet = 'past'; // Passé
+    }
+%>
+
+
+<div class="col-12 col-sm-6 col-lg-4 trajet-col"
+     data-status="<%= statutTrajet %>">
+
         <div class="card h-100 shadow-sm border-0 card-ride">
           <div class="card-body d-flex flex-column">
             <div class="d-flex align-items-center justify-content-between">
@@ -53,9 +75,11 @@
                 <span class="text-muted">→</span>
                 <span class="text-capitalize"><%= t.destination %></span>
               </h5>
-              <span class="badge <%= isPast ? 'text-bg-secondary' : 'text-bg-success' %>">
-                <%= isPast ? 'Passé' : 'À venir' %>
-              </span>
+<span class="badge <%= t.statut === 'en_cours' ? 'text-bg-warning' : t.statut === 'a_venir' ? 'text-bg-success' : 'text-bg-secondary' %>">
+  <%= t.statut === 'en_cours' ? 'En cours' : t.statut === 'a_venir' ? 'À venir' : 'Terminé' %>
+</span>
+
+
             </div>
 
             <ul class="list-unstyled small mb-3">
@@ -72,37 +96,40 @@
               </li>
             </ul>
 
-            <div class="mt-auto d-flex gap-2">
-              <!-- Bouton Détails -->
-              <a href="/trajet/<%= t.trajet_id %>" 
-                 class="btn btn-outline-primary btn-sm w-100 btn-details">
-                Détails
-              </a>
+<% /* statutTrajet calculé côté EJS: 'upcoming' | 'in_progress' | 'past' */ %>
 
-              <!-- Bouton Démarrer / Arrivée -->
-              <% if (t.statut === 'a_venir') { %>
-                <form action="/demarrer-trajet" method="POST" class="w-100"
-                      onsubmit="return confirm('Démarrer ce trajet ?');">
-                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
-                  <button type="submit" class="btn btn-success btn-sm w-100">Démarrer</button>
-                </form>
-              <% } else if (t.statut === 'en_cours') { %>
-                <form action="/terminer-trajet" method="POST" class="w-100"
-                      onsubmit="return confirm('Confirmer l\'arrivée à destination ?');">
-                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
-                  <button type="submit" class="btn btn-warning btn-sm w-100">Arrivée à destination</button>
-                </form>
-              <% } %>
+<div class="mt-auto d-flex gap-2">
+  <a href="/trajet/<%= t.trajet_id %>" class="btn btn-outline-primary btn-sm w-100 btn-details">
+    Détails
+  </a>
 
-              <!-- Bouton Annuler -->
-              <% if (t.statut !== 'termine') { %>
-                <form action="/annuler-trajet" method="POST" class="w-100"
-                      onsubmit="return confirm('Annuler ce trajet ? Tous les passagers seront remboursés.');">
-                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
-                  <button type="submit" class="btn btn-danger btn-sm w-100">Annuler</button>
-                </form>
-              <% } %>
-            </div>
+  <% if (t.statut === 'en_cours') { %>
+    <form action="/terminer-trajet" method="POST" class="w-100"
+          onsubmit="return confirm('Confirmer l&apos;arrivée à destination ?');">
+      <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+      <button type="submit" class="btn btn-sm w-100" style="background-color: rgb(80,178,163); color: black;">Arrivée à destination</button>
+    </form>
+  <% } else if (statutTrajet === 'in_progress' && t.statut !== 'termine') { %>
+    <form action="/demarrer-trajet" method="POST" class="w-100"
+          onsubmit="return confirm('Démarrer ce trajet ?');">
+      <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+      <button type="submit" class="btn btn-sm w-100" style="background-color: rgb(80,178,163); color: black;">
+        🚗 Démarrer
+      </button>
+    </form>
+  <% } %>
+
+  <% if (statutTrajet !== 'past') { %>
+    <form action="/annuler-trajet" method="POST" class="w-100"
+          onsubmit="return confirm('Annuler ce trajet ? Tous les passagers seront remboursés.');">
+      <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+      <button type="submit" class="btn btn-danger btn-sm w-100">Annuler</button>
+    </form>
+  <% } %>
+</div>
+
+
+
           </div>
         </div>
       </div>
