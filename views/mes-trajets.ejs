@@ -1,0 +1,132 @@
+<%- include('partials/header', { title: 'Mes trajets', user: user }) %>
+
+<main class="page-mes-trajets">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <h1 class="m-0 fw-bold">Mes trajets</h1>
+  </div>
+
+  <% if (success === 'annulation_trajet') { %>
+    <div class="alert alert-success">Trajet annulé et passagers remboursés ✅</div>
+  <% } %>
+  <% if (success === 'trajet_demarre') { %>
+    <div class="alert alert-success">Trajet démarré 🚗💨</div>
+  <% } %>
+  <% if (success === 'trajet_termine') { %>
+    <div class="alert alert-success">Trajet terminé ✅</div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert alert-danger"><%= error %></div>
+  <% } %>
+
+  <% if (!trajets || trajets.length === 0) { %>
+    <div class="card shadow-sm border-0 empty-state">
+      <div class="card-body text-center py-5">
+        <h5 class="mb-2">Aucun trajet publié</h5>
+        <p class="text-muted mb-4">Crée ton premier trajet depuis ton profil ➜ véhicule, puis “Créer un trajet”.</p>
+        <a href="/profile" class="btn btn-primary">Aller au profil</a>
+      </div>
+    </div>
+  <% } else { %>
+
+    <!-- Filtres rapides -->
+    <div class="filters mb-3" style="display:flex;gap:.5rem;">
+      <button class="btn btn-outline-secondary btn-sm filter-btn active" data-filter="all">Tous</button>
+      <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="upcoming">À venir</button>
+      <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="past">Passés</button>
+    </div>
+
+    <div class="row g-4">
+      <% trajets.forEach(t => { 
+            const dateObj = new Date(t.date_du_trajet);
+            const dateStr = dateObj.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+            const [h, m] = (t.heure_depart || '00:00').split(':').map(Number);
+            const fullDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), h, m);
+            const isPast = fullDate.getTime() < Date.now();
+      %>
+      <div class="col-12 col-sm-6 col-lg-4 trajet-col"
+           data-status="<%= isPast ? 'past' : 'upcoming' %>">
+        <div class="card h-100 shadow-sm border-0 card-ride">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="card-title mb-2">
+                <span class="text-capitalize"><%= t.lieu_depart %></span>
+                <span class="text-muted">→</span>
+                <span class="text-capitalize"><%= t.destination %></span>
+              </h5>
+              <span class="badge <%= isPast ? 'text-bg-secondary' : 'text-bg-success' %>">
+                <%= isPast ? 'Passé' : 'À venir' %>
+              </span>
+            </div>
+
+            <ul class="list-unstyled small mb-3">
+              <li class="mb-1"><strong>Date :</strong> <%= dateStr %></li>
+              <li class="mb-1"><strong>Heure :</strong> <%= (t.heure_depart || '').toString().slice(0,5) %></li>
+              <li class="mb-1"><strong>Prix / place :</strong> <%= Number(t.prix_par_place || 0).toFixed(2) %> crédits</li>
+              <li class="mb-1">
+                <strong>Réservées :</strong> <%= t.nb_reservations %> /
+                <%= t.nombre_de_places %>
+                <% const restantes = (t.nombre_de_places || 0) - (t.nb_reservations || 0); %>
+                <span class="ms-2 badge <%= restantes <= 0 ? 'text-bg-danger' : 'text-bg-info' %>">
+                  <%= Math.max(restantes, 0) %> restantes
+                </span>
+              </li>
+            </ul>
+
+            <div class="mt-auto d-flex gap-2">
+              <!-- Bouton Détails -->
+              <a href="/trajet/<%= t.trajet_id %>" 
+                 class="btn btn-outline-primary btn-sm w-100 btn-details">
+                Détails
+              </a>
+
+              <!-- Bouton Démarrer / Arrivée -->
+              <% if (t.statut === 'a_venir') { %>
+                <form action="/demarrer-trajet" method="POST" class="w-100"
+                      onsubmit="return confirm('Démarrer ce trajet ?');">
+                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+                  <button type="submit" class="btn btn-success btn-sm w-100">Démarrer</button>
+                </form>
+              <% } else if (t.statut === 'en_cours') { %>
+                <form action="/terminer-trajet" method="POST" class="w-100"
+                      onsubmit="return confirm('Confirmer l\'arrivée à destination ?');">
+                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+                  <button type="submit" class="btn btn-warning btn-sm w-100">Arrivée à destination</button>
+                </form>
+              <% } %>
+
+              <!-- Bouton Annuler -->
+              <% if (t.statut !== 'termine') { %>
+                <form action="/annuler-trajet" method="POST" class="w-100"
+                      onsubmit="return confirm('Annuler ce trajet ? Tous les passagers seront remboursés.');">
+                  <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
+                  <button type="submit" class="btn btn-danger btn-sm w-100">Annuler</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+
+<%- include('partials/footer') %>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const cols = document.querySelectorAll('.trajet-col');
+  const btns = document.querySelectorAll('.filter-btn');
+
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filter = btn.dataset.filter; // all | upcoming | past
+      cols.forEach(col => {
+        col.style.display = (filter === 'all' || col.dataset.status === filter) ? '' : 'none';
+      });
+      btns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+</script>

@@ -1,0 +1,209 @@
+<%- include('partials/header') %>
+
+<style>
+    body {
+        background-color: #00ffbf;
+    }
+    .card {
+        background-color: rgb(80, 178, 163);
+        color: white;
+    }
+    .card strong {
+        color: #00ffbf;
+    }
+</style>
+
+<main class="container mt-5">
+<% if (query?.error) { %>
+<div class="wrapper">
+
+  <div class="alert alert-danger">
+    <% if (req.query.error === 'trajet_introuvable') { %>Trajet introuvable.<% } %>
+    <% if (req.query.error === 'propre_trajet') { %>Vous ne pouvez pas réserver votre propre trajet.<% } %>
+    <% if (req.query.error === 'plus_de_places') { %>Il n'y a plus de places disponibles.<% } %>
+    <% if (req.query.error === 'credits_insuffisants') { %>Crédits insuffisants.<% } %>
+    <% if (req.query.error === 'deja_reserve') { %>Vous avez déjà réservé ce trajet.<% } %>
+    <% if (req.query.error === 'prix_invalide') { %>Prix invalide pour ce trajet.<% } %>
+    <% if (req.query.error === 'exception') { %>Erreur serveur, réessayez plus tard.<% } %>
+    <% if (req.query.reservation === "success") { %>
+  <div class="alert alert-success mt-3">Votre réservation a été confirmée ! ✅</div>
+<% } %>
+
+  </div>
+<% } %>
+
+<% if (query.error === 'trajet_introuvable') { %>
+
+  <div class="alert alert-success">Réservation confirmée ✅ Un email vous a été envoyé.</div>
+<% } %>
+    <div class="card p-4 shadow-sm">
+        <h2 class="text-center mb-4" style="color: rgb(80, 178, 163);">Détail du Trajet</h2>
+        
+        <% if (trajet && Object.keys(trajet).length > 0) { %>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Départ :</strong> <%= trajet.lieu_depart %></p>
+                    <p><strong>Destination :</strong> <%= trajet.destination %></p>
+                    <p><strong>Date :</strong> <%= trajet.date_du_trajet %></p>
+                    <p><strong>Heure de départ :</strong> <%= trajet.heure_depart %></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Durée du trajet :</strong> <%= trajet.duree_du_trajet %></p>
+                    <p><strong>Places disponibles :</strong> <%= placesRestantes %> / <%= trajet.nombre_de_places %></p>
+                    <p><strong>Prix par place :</strong> <%= trajet.prix_par_place %> €</p>
+                </div>
+            </div>
+        <% } else { %>
+            <p class="alert alert-danger">⚠️ Erreur : Aucune donnée de trajet disponible.</p>
+        <% } %>
+    </div>
+    
+    <div class="card p-4 mt-4 shadow-sm">
+        <h2 class="text-center mb-4" style="color: rgb(80, 178, 163);">Informations du Chauffeur</h2>
+        
+        <% if (trajet && trajet.chauffeur_nom) { %>
+            <div class="text-center mb-4">
+                <img src="/assets/man-avatar-clipart-illustration-free-png.webp" alt="Avatar" class="rounded-circle" style="width: 100px; height: 100px; border: 3px solid rgb(80, 178, 163);">
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Nom :</strong> <%= trajet.chauffeur_nom %> <%= trajet.chauffeur_prenom %></p>
+                    <p><strong>Email :</strong> <%= trajet.chauffeur_email %></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Téléphone :</strong> <%= trajet.chauffeur_telephone %></p>
+                    <p><strong>Note :</strong> <%= trajet.chauffeur_note %> ⭐</p>
+                </div>
+            </div>
+        <% } else { %>
+            <p class="alert alert-danger">⚠️ Informations du chauffeur non disponibles.</p>
+        <% } %>
+    </div>
+    
+    <div class="card p-4 mt-4 shadow-sm">
+        <h2 class="text-center mb-4" style="color: rgb(80, 178, 163);">Informations du Véhicule</h2>
+        
+        <% if (trajet && trajet.marque) { %>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Marque :</strong> <%= trajet.marque %></p>
+                    <p><strong>Modèle :</strong> <%= trajet.modele %></p>
+                    <p><strong>Couleur :</strong> <%= trajet.couleur || 'Non spécifié' %></p>
+                    <p><strong>Plaque :</strong> <%= trajet.plaque_immatriculation || 'Non spécifié' %></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Préférences :</strong></p>
+                    <ul class="list-unstyled">
+                        <% if (trajet.preferences && trajet.preferences.length > 0) { %>
+                            <% trajet.preferences.forEach(pref => { %>
+                                <li><i class="fas fa-check text-success"></i> <%= pref %></li>
+                            <% }); %>
+                        <% } else { %>
+                            <li>Aucune préférence spécifiée</li>
+                        <% } %>
+                    </ul>
+                </div>
+            </div>
+        <% } else { %>
+            <p class="alert alert-danger">⚠️ Informations du véhicule non disponibles.</p>
+        <% } %>
+    </div>
+
+    <% if (!user) { %>
+        <div class="card p-4 mt-4">
+            <div class="text-center">
+                <p class="mb-3">Veuillez vous connecter ou créer un compte pour réserver une place.</p>
+                <a href="/login" class="btn btn-primary me-2">Se connecter</a>
+                <a href="/register" class="btn btn-success">Créer un compte</a>
+            </div>
+        </div>
+    <% } else if (!dejaReserve && placesRestantes > 0) { %>
+        <div class="card p-4 mt-4 shadow-sm">
+            <h2 class="text-center mb-4" style="color: rgb(80, 178, 163);">Réserver une place</h2>
+            <div class="text-center">
+                <% if (user.credits >= trajet.prix_par_place) { %>
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmationModal2">
+                        Participer au trajet
+                    </button>
+                    
+                    <!-- Modal de confirmation -->
+<div class="modal fade" id="confirmationModal2" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content shadow-lg border-0 rounded-3">
+
+      <form action="/reserver-trajet" method="POST">
+        <!-- Header -->
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="confirmationModalLabel">
+            Confirmation de participation
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+
+        <!-- Body -->
+        <div class="modal-body text-dark">
+          <p class="mb-2">Êtes-vous sûr de vouloir participer à ce trajet ?</p>
+          <ul class="list-unstyled">
+            <li>💰 Coût en crédits : 
+              <strong style="color: #2E8B57;"><%= trajet?.prix_par_place || 0 %></strong>
+            </li>
+            <li>💳 Vos crédits actuels : 
+              <strong style="color: #2E8B57;"><%= user?.credits || 0 %></strong>
+            </li>
+            <li>📉 Crédits restants après réservation :
+              <strong style="color: #2E8B57;"><%= (user?.credits || 0) - (trajet?.prix_par_place || 0) %></strong>
+            </li>
+          </ul>
+
+          <!-- Champ caché requis -->
+          <input type="hidden" name="trajetId" value="<%= trajet.id %>">
+        </div>
+
+        <div class="modal-footer text-dark">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-success">Confirmer la participation</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+                <% } else { %>
+                    <div class="alert alert-warning">
+                        Vous n'avez pas assez de crédits pour participer à ce trajet.
+                        <br>
+                        Crédits nécessaires : <%= trajet.prix_par_place %>
+                        <br>
+                        Vos crédits : <%= user.credits %>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    <% } else if (dejaReserve) { %>
+        <div class="card p-4 mt-4">
+            <div class="text-center">
+                <div class="alert alert-info">
+                    Vous participez déjà à ce trajet !
+                </div>
+            </div>
+        </div>
+    <% } else { %>
+        <div class="card p-4 mt-4">
+            <div class="text-center">
+                <div class="alert alert-warning">
+                    Désolé, il n'y a plus de places disponibles pour ce trajet.
+                </div>
+            </div>
+        </div>
+    <% } %>
+<div class="d-flex justify-content-center mt-4">
+</div>
+
+
+</div>
+</main>

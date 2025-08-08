@@ -1,0 +1,53 @@
+<%- include('partials/header') %>
+
+<style>
+    body {
+        background-color: #00ffbf;
+    }
+    .card {
+        background-color: rgb(80, 178, 163);
+        color: white;
+    }
+    .card strong {
+        color: #00ffbf;
+    }
+    .badge {
+        background-color: #00ffbf !important;
+        color: rgb(80, 178, 163) !important;
+    }
+</style>
+
+<main class="container mt-5">
+    <div class="card p-4">
+        <h2 class="text-center mb-4">Mes Trajets Annulés</h2>
+        
+        <% if (trajets && trajets.length > 0) { %>
+            <div class="row">
+                <% trajets.forEach(function(trajet) { %>
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <%= trajet.lieu_depart %> → <%= trajet.destination %>
+                                </h5>
+                                <div class="card-text">
+                                    <p><strong>Date :</strong> <%= trajet.date_du_trajet %></p>
+                                    <p><strong>Heure de départ :</strong> <%= trajet.heure_depart %></p>
+                                    <p><strong>Prix :</strong> <%= trajet.prix_par_place %> €</p>
+                                    <p><strong>Statut :</strong> <span class="badge bg-danger">Annulé</span></p>
+                                    <p><strong>Raison :</strong> <%= trajet.raison_annulation || 'Non spécifiée' %></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div class="alert alert-info text-center">
+                Vous n'avez aucun trajet annulé.
+            </div>
+        <% } %>
+    </div>
+</main>
+
+<%- include('partials/footer') %>
