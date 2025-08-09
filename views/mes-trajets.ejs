@@ -107,9 +107,12 @@
     <form action="/terminer-trajet" method="POST" class="w-100"
           onsubmit="return confirm('Confirmer l&apos;arrivée à destination ?');">
       <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
-      <button type="submit" class="btn btn-sm w-100" style="background-color: rgb(80,178,163); color: black;">Arrivée à destination</button>
+      <button type="submit" class="btn btn-sm w-100" style="background-color: rgb(80,178,163); color: black;">
+        Arrivée à destination
+      </button>
     </form>
   <% } else if (statutTrajet === 'in_progress' && t.statut !== 'termine') { %>
+    <!-- Afficher "Démarrer" uniquement si on est dans la plage horaire -->
     <form action="/demarrer-trajet" method="POST" class="w-100"
           onsubmit="return confirm('Démarrer ce trajet ?');">
       <input type="hidden" name="trajet_id" value="<%= t.trajet_id %>">
@@ -130,6 +133,7 @@
 
 
 
+
           </div>
         </div>
       </div>
@@ -137,8 +141,6 @@
     </div>
   <% } %>
 </main>
-
-<%- include('partials/footer') %>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -157,3 +159,4 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
+<%- include('partials/footer') %>

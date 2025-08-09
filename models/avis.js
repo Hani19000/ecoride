@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const AvisSchema = new mongoose.Schema({
   trajetId: { type: Number, required: true, index: true },
+  reservationId: { type: Number, required: true, index: true },
   passagerId: { type: Number, required: true, index: true },
   chauffeurId: { type: Number, required: true, index: true },
   note: { type: Number, min: 1, max: 5, required: true },
@@ -10,7 +11,6 @@ const AvisSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { versionKey: false });
 
-AvisSchema.index({ trajetId: 1, passagerId: 1 }, { unique: true });
+AvisSchema.index({ reservationId: 1, passagerId: 1 }, { unique: true });
 
 export default mongoose.model("Avis", AvisSchema);
-

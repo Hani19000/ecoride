@@ -52,7 +52,11 @@
               <a class="nav-link" href="/login">Connexion</a>
             </li>
           <% } %>
-
+<% if (user?.is_admin) { %>
+              <li class="nav-item">
+              <a class="nav-link" href="/admin/avis">Modération avis</a>
+            </li>
+            <% } %>
         </ul>
       </div>
     </div>

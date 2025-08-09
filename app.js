@@ -6,7 +6,7 @@ import bcrypt from "bcrypt"
 import path from "path";
 import session from "express-session";
 import mongoose from "mongoose";
-
+import Avis from "./models/avis.js";
 
 
 dotenv.config();
@@ -135,48 +135,46 @@ app.post("/terminer-trajet", isAuthenticated, async (req, res) => {
   const userId = req.session.user.id;
 
   try {
-    // 1) Vérif que le trajet existe + appartient au chauffeur connecté
+    await db.query('BEGIN');
+
     const tRes = await db.query(
-      `SELECT id, statut, chauffeur_id
-         FROM trajet
-        WHERE id = $1`,
+      `SELECT id, statut, chauffeur_id FROM trajet WHERE id = $1`,
       [trajet_id]
     );
-
     if (!tRes.rowCount) {
+      await db.query('ROLLBACK');
       return res.redirect("/mes-trajets?error=Trajet introuvable");
     }
-
     const t = tRes.rows[0];
-
     if (t.chauffeur_id !== userId) {
+      await db.query('ROLLBACK');
       return res.redirect("/mes-trajets?error=Tu n'es pas le chauffeur de ce trajet");
     }
-
     if (t.statut !== 'en_cours') {
+      await db.query('ROLLBACK');
       return res.redirect("/mes-trajets?error=Le trajet n'est pas en cours");
     }
 
-    // 2) Mise à jour simple (sans ended_at si la colonne n'existe pas chez toi)
-const r = await db.query(
-  `UPDATE trajet SET statut = 'termine', ended_at = NOW() WHERE id = $1`,
-  [trajet_id]
-);
+    // Trajet -> terminé
+    await db.query(
+      `UPDATE trajet SET statut = 'termine', ended_at = NOW() WHERE id = $1`,
+      [trajet_id]
+    );
 
+    // Réservations liées -> terminé (PAS de avis_deja_donne)
+    await db.query(
+      `UPDATE reservations SET statut = 'termine' WHERE trajet_id = $1`,
+      [trajet_id]
+    );
 
-    if (!r.rowCount) {
-      return res.redirect("/mes-trajets?error=Aucune ligne mise à jour");
-    }
-
-    return res.redirect("/mes-trajets?success=Trajet terminé");
+    await db.query('COMMIT');
+    return res.redirect("/mes-trajets?success=trajet_termine");
   } catch (err) {
+    try { await db.query('ROLLBACK'); } catch {}
     console.error("terminer-trajet ERROR:", err);
     return res.redirect("/mes-trajets?error=Impossible de terminer (voir logs serveur)");
   }
 });
-
-
-
 
 
 // Annuler une réservation (par le passager) + REMBOURSEMENT
@@ -231,91 +229,143 @@ app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
   }
 });
 
+
+// POST /avis — Passager → Chauffeur uniquement
 app.post("/avis", isAuthenticated, async (req, res) => {
-  const { trajet_id, chauffeur_id, note, commentaire } = req.body;
-  const passager_id = req.session.user.id;
-
-  // Sécurité basique
-  const intNote = parseInt(note, 10);
-  if (Number.isNaN(intNote) || intNote < 1 || intNote > 5) {
-    return res.status(400).send("Note invalide");
-  }
-  if (intNote <= 2 && (!commentaire || !commentaire.trim())) {
-    return res.status(400).send("Commentaire requis si la note ≤ 2");
-  }
-
   try {
-    // Vérifier que l'utilisateur a bien participé ET que le trajet est terminé
-    const check = await db.query(`
-      SELECT 1 
-      FROM reservations r
-      JOIN trajet t ON t.id = r.trajet_id
-      WHERE r.trajet_id = $1
-        AND r.user_id   = $2
-        AND t.statut    = 'termine'
-      LIMIT 1
-    `, [trajet_id, passager_id]);
+    const userId = req.session.user.id;
+    const { reservation_id, trajet_id, note, commentaire = "" } = req.body;
 
-    if (!check.rowCount) {
-      return res.status(403).send("Vous ne pouvez pas laisser un avis pour ce trajet.");
+    // validations
+    const n = parseInt(note, 10);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      return res.status(400).json({ ok:false, message:"Note invalide (1 à 5)." });
+    }
+    if (!reservation_id || !trajet_id) {
+      return res.status(400).json({ ok:false, message:"Champs manquants." });
+    }
+    if (n <= 3 && !commentaire.trim()) {
+      return res.status(400).json({ ok:false, message:"Commentaire requis pour une note ≤ 3." });
     }
 
-    // Empêcher le doublon (1 avis par passager/trajet)
-    const exists = await Avis.exists({ trajetId: Number(trajet_id), passagerId: passager_id });
-    if (exists) {
-      return res.redirect("/historique?error=avis_deja_envoye");
+    // vérifier la réservation et le trajet (doit appartenir au passager + être terminé)
+    const r = await db.query(`
+      SELECT r.id AS reservation_id,
+             r.user_id AS passager_id,
+             r.trajet_id,
+             t.chauffeur_id,
+             t.statut AS trajet_statut
+        FROM reservations r
+        JOIN trajet t ON t.id = r.trajet_id
+       WHERE r.id = $1
+         AND r.user_id = $2
+         AND t.id = $3
+    `, [reservation_id, userId, trajet_id]);
+
+    if (!r.rowCount) {
+      return res.status(404).json({ ok:false, message:"Réservation introuvable." });
+    }
+    const row = r.rows[0];
+    if (row.trajet_statut !== 'termine') {
+      return res.status(400).json({ ok:false, message:"Le trajet n'est pas terminé." });
     }
 
+    // anti-doublon (un avis par réservation)
+    const dup = await Avis.findOne({
+      reservationId: Number(reservation_id),
+      type: "passager_to_chauffeur"
+    }).lean();
+    if (dup) {
+      return res.status(400).json({ ok:false, message:"Avis déjà soumis pour cette réservation." });
+    }
+
+    // créer l'avis dans Mongo
     await Avis.create({
+      type: "passager_to_chauffeur",
       trajetId: Number(trajet_id),
-      passagerId: passager_id,
-      chauffeurId: Number(chauffeur_id),
-      note: intNote,
-      commentaire: commentaire || "",
-      statut_validation: "en_attente"
+      reservationId: Number(reservation_id),
+      passagerId: Number(userId),
+      chauffeurId: Number(row.chauffeur_id),
+      note: n,
+      commentaire: commentaire.trim(),
+      statut_validation: "en_attente",
     });
 
-    res.redirect("/historique?success=avis_envoye");
-  } catch (err) {
-    console.error("Erreur enregistrement avis :", err);
-    res.status(500).send("Erreur lors de l'envoi de l'avis.");
+    return res.json({ ok:true, message:"Avis envoyé, en attente de validation." });
+  } catch (e) {
+    console.error("POST /avis error:", e);
+    return res.status(500).json({ ok:false, message:"Erreur serveur lors de l'envoi de l'avis." });
   }
 });
+
+
+
+function isAdmin(req, res, next) {
+  // Pour tester vite : mets req.session.user.is_admin = true à la connexion
+  if (req.session?.user?.is_admin) return next();
+  return res.status(403).render("error", { message: "Accès admin requis" });
+}
+
 
 
 
 // Valider un avis et mettre à jour les crédits
 app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
-  const { avis_id, action } = req.body; // "approuver" | "refuser"
+  const { avis_id, action } = req.body;
 
   try {
     const avis = await Avis.findOne({ _id: avis_id, statut_validation: "en_attente" }).lean();
-    if (!avis) {
-      return res.status(404).send("Avis introuvable ou déjà traité.");
-    }
+    if (!avis) return res.redirect("/admin/avis?error=Avis introuvable");
 
     if (action === "approuver") {
       await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "approuve" } });
 
-      // Créditer le chauffeur uniquement si note >= 4
-      if (avis.note >= 4) {
-        await db.query(
-          `UPDATE credits SET montant = montant + 2 WHERE user_id = $1`,
-          [avis.chauffeurId]
-        );
+      // libérer le payout et créditer le chauffeur
+      const rel = await db.query(`
+        UPDATE payouts
+           SET statut = 'released', resolved_at = NOW()
+         WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut = 'held'
+        RETURNING montant
+      `, [avis.reservationId, avis.chauffeurId]);
+
+      if (rel.rowCount) {
+        const total = rel.rows.reduce((s, r) => s + Number(r.montant || 0), 0);
+        if (total > 0) {
+          await db.query(`UPDATE credits SET montant = montant + $1 WHERE user_id = $2`, [total, avis.chauffeurId]);
+        }
       }
-    } else if (action === "refuser") {
-      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
-    } else {
-      return res.status(400).send("Action invalide");
+
+      // marquer la résa validée définitivement
+      await db.query(`UPDATE reservations SET validation_statut = 'valide' WHERE id = $1`, [avis.reservationId]);
+
+      return res.redirect("/admin/avis?success=Avis approuvé, chauffeur crédité");
     }
 
-    res.redirect("/admin/avis?success=avis_traite");
-  } catch (err) {
-    console.error("Erreur validation avis :", err);
-    res.status(500).send("Erreur lors de la validation de l'avis.");
+    if (action === "refuser") {
+      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
+
+      // annuler le payout (option simple)
+      await db.query(`
+        UPDATE payouts
+           SET statut = 'canceled', resolved_at = NOW()
+         WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut IN ('held','pending')
+      `, [avis.reservationId, avis.chauffeurId]);
+
+      // tu peux aussi re-créditer le passager si tu veux, selon ta règle métier
+
+      // marquer la résa comme "signale"
+      await db.query(`UPDATE reservations SET validation_statut = 'signale' WHERE id = $1`, [avis.reservationId]);
+
+      return res.redirect("/admin/avis?success=Avis refusé");
+    }
+
+    return res.redirect("/admin/avis?error=Action inconnue");
+  } catch (e) {
+    console.error("POST /admin/avis/valider", e);
+    return res.redirect("/admin/avis?error=Erreur traitement avis");
   }
 });
+
 
 app.post("/reservation/:id/valider", isAuthenticated, async (req, res) => {
   const reservationId = req.params.id;
@@ -437,12 +487,20 @@ app.use('/reservation', reservationRouter);
 import contactRouter from './routes/contact.js';
 app.use('/contact', contactRouter);
 
-import Avis from "./models/avis.js";
-
 
 app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
+
+app.get("/admin/avis", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const avis = await Avis.find({ statut_validation: "en_attente" }).sort({ createdAt: -1 }).lean();
+    res.render("admin-avis", { avis, user: req.session.user, query: req.query });
+  } catch (e) {
+    console.error("GET /admin/avis", e);
+    res.status(500).render("error", { message: "Impossible de charger les avis." });
+  }
+});
 
 
 app.get("/validations", isAuthenticated, async (req, res) => {
@@ -475,17 +533,6 @@ app.get("/validations", isAuthenticated, async (req, res) => {
   }
 });
 
-
-// Liste des avis en attente
-app.get("/admin/avis", isAuthenticated, async (req, res) => {
-  try {
-    const avis = await Avis.find({ statut_validation: "en_attente" }).sort({ createdAt: -1 }).lean();
-    res.render("admin-avis", { avis, user: req.session.user });
-  } catch (e) {
-    console.error("GET /admin/avis", e);
-    res.status(500).render("error", { message: "Impossible de charger les avis." });
-  }
-});
 
 // Valider / Refuser un avis
 app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
@@ -540,39 +587,51 @@ app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
 
 app.get('/historique', isAuthenticated, async (req, res) => {
   try {
-    const userId = req.session.user.id;
+    const user = req.session.user;
 
-    // Trajets réservés par l'utilisateur + infos chauffeur + statut du trajet
+    // 1) Récup des réservations (join pour avoir trajet & chauffeur)
     const { rows } = await db.query(`
       SELECT 
-        r.id                  AS reservation_id,
-        r.trajet_id,
+        r.id AS reservation_id,
+        r.statut AS reservation_statut,
         r.credits_utilises,
-        r.statut              AS reservation_statut,
+        r.trajet_id,
+        t.chauffeur_id,
         t.lieu_depart,
         t.destination,
         t.date_du_trajet,
-        t.heure_depart,
-        t.statut              AS trajet_statut,
-        t.chauffeur_id
+        t.heure_depart
       FROM reservations r
-      JOIN trajet t ON t.id = r.trajet_id
+      JOIN trajet t ON r.trajet_id = t.id
       WHERE r.user_id = $1
-      ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
-    `, [userId]);
+      ORDER BY r.created_at DESC
+    `, [user.id]);
 
-    // Pour chaque réservation, vérifier s'il y a déjà un avis en Mongo
-    const withAvis = await Promise.all(rows.map(async (r) => {
-      const exist = await Avis.exists({ trajetId: r.trajet_id, passagerId: userId });
-      return { ...r, avis_deja_donne: !!exist };
+    // 2) Avis déjà envoyés pour ces réservations (Mongo)
+    const resaIds = rows.map(r => Number(r.reservation_id));
+    let avisByResa = new Set();
+    if (resaIds.length) {
+      const avis = await Avis.find({
+        passagerId: Number(user.id),
+        reservationId: { $in: resaIds }
+      }, { reservationId: 1 }).lean();
+      avisByResa = new Set(avis.map(a => Number(a.reservationId)));
+    }
+
+    // 3) Enrichir pour la vue
+    const reservations = rows.map(r => ({
+      ...r,
+      statut: r.reservation_statut,
+      _avis_deja_donne: avisByResa.has(Number(r.reservation_id))
     }));
 
-    res.render('historique', { reservations: withAvis, user: req.session.user });
+    res.render('historique', { reservations, user, query: req.query });
   } catch (err) {
     console.error("❌ Erreur chargement historique :", err);
     res.status(500).render('error', { message: 'Erreur chargement historique' });
   }
 });
+
 
 app.get('/mes-trajets', isAuthenticated, async (req, res) => {
   try {
@@ -642,27 +701,6 @@ app.get('/', (req, res) => {
 app.get('/contact', (req, res) => {
   res.render('contact', { user: req.session.user });
 });
-
-
-app.get('/historique', isAuthenticated, async (req, res) => {
-  const userId = req.session.user.id;
-  
-  // Exemple : si tu stockes les rôles dans la session
-  const roles = req.session.user.roles || [];
-
-  const { rows: reservations } = await db.query(`
-    SELECT * FROM reservations
-    WHERE user_id = $1
-  `, [userId]);
-
-  res.render('historique', {
-    reservations,
-    roles // <-- On envoie à la vue
-  });
-});
-
-
-
 
 // Middleware pour rendre user disponible dans toutes les vues
 app.use((req, res, next) => {
@@ -925,13 +963,15 @@ app.post("/login", async (req, res) => {
     );
 
     // Mettre à jour les crédits en session
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      nom: user.nom,
-      prenom: user.prenom,
-      credits: user.credits
-    };
+    // admin
+req.session.user = {
+  id: user.id,
+  email: user.email,
+  nom: user.nom,
+  prenom: user.prenom,
+  credits: user.credits,
+  is_admin: !!user.is_admin  // <- important
+};
 
     return res.redirect("/profile");
   } catch (err) {
@@ -982,7 +1022,6 @@ app.post("/api/login", async (req, res) => {
       prenom: user.prenom,
       credits: user.credits
     };
-
     // Mettre à jour les crédits dans la session
     req.session.save((err) => {
       if (err) {
@@ -995,6 +1034,77 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la connexion" });
   }
 });
+
+// ✅ Route pour créer un nouveau trajet
+app.post('/trajet/creer', async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Utilisateur non connecté' });
+  }
+
+  const {
+    vehicule_id,
+    lieu_depart,
+    destination,
+    date_du_trajet,
+    heure_depart,
+    duree_du_trajet,
+    nombre_de_places,
+    prix_par_place
+  } = req.body;
+
+  try {
+    // Vérifier que le véhicule appartient bien au chauffeur
+    const vehiculeCheck = await db.query(
+      'SELECT id FROM vehicule WHERE id = $1 AND chauffeur_id = $2',
+      [vehicule_id, req.session.user.id]
+    );
+
+    if (vehiculeCheck.rows.length === 0) {
+      return res.status(403).json({ 
+        error: 'Vous n\'êtes pas autorisé à créer un trajet avec ce véhicule' 
+      });
+    }
+
+    // Créer le trajet
+    const result = await db.query(
+      `INSERT INTO trajet (
+        chauffeur_id,
+        vehicule_id,
+        lieu_depart,
+        destination,
+        date_du_trajet,
+        heure_depart,
+        duree_du_trajet,
+        nombre_de_places,
+        prix_par_place
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [
+        req.session.user.id,
+        vehicule_id,
+        lieu_depart,
+        destination,
+        date_du_trajet,
+        heure_depart,
+        duree_du_trajet,
+        nombre_de_places,
+        prix_par_place
+      ]
+    );
+
+    console.log("Trajet créé avec succès:", result.rows[0]);
+
+    res.status(201).json({
+      message: 'Trajet créé avec succès',
+      trajet_id: result.rows[0].id
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création du trajet:', error);
+    res.status(500).json({ 
+      error: 'Une erreur est survenue lors de la création du trajet' 
+    });
+  }
+});
+
 
 // ✅ Route pour afficher la liste des trajets
 app.get("/trajets", async (req, res) => {
@@ -1027,71 +1137,6 @@ app.get("/trajets", async (req, res) => {
     res.status(500).render("error", { 
       message: "Une erreur est survenue lors de la récupération des trajets" 
     });
-  }
-});
-
-app.get("/trajet/creer", async (req, res) => {
-  if (!req.session.user) {
-    return res.redirect('/login');
-  }
-
-  try {
-    // Récupérer les informations du véhicule
-    const vehiculeId = req.query.vehicule_id;
-    const vehiculeResult = await db.query(
-      'SELECT * FROM vehicule WHERE id = $1 AND chauffeur_id = $2',
-      [vehiculeId, req.session.user.id]
-    );
-
-    if (vehiculeResult.rows.length === 0) {
-      return res.status(404).render('error', { 
-        message: 'Véhicule non trouvé ou vous n\'êtes pas autorisé à créer un trajet avec ce véhicule' 
-      });
-    }
-
-    const vehicule = vehiculeResult.rows[0];
-
-    res.render('creer-trajet', {
-      user: req.session.user,
-      vehicule: vehicule
-    });
-  } catch (error) {
-    console.error('Erreur lors de la récupération des informations du véhicule:', error);
-    res.status(500).render('error', { 
-      message: 'Une erreur est survenue lors de la récupération des informations du véhicule' 
-    });
-  }
-});
-
-// ✅ Route pour créer un nouveau trajet
-app.post("/trajet/creer", async (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Vous devez être connecté pour créer un trajet" });
-  }
-
-  const { 
-    vehicule_id, lieu_depart, destination, date_du_trajet, 
-    heure_depart, duree_du_trajet, nombre_de_places, prix_par_place 
-  } = req.body;
-  const chauffeur_id = req.session?.user?.id;
-
-  try {
-    const result = await db.query(
-      `INSERT INTO trajet (
-        lieu_depart, destination, date_du_trajet, heure_depart, 
-        duree_du_trajet, nombre_de_places, prix_par_place, 
-        chauffeur_id, vehicule_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [
-        lieu_depart, destination, date_du_trajet, heure_depart,
-        duree_du_trajet, nombre_de_places, prix_par_place,
-        chauffeur_id, vehicule_id
-      ]
-    );
-    res.json({ success: true, trajet_id: result.rows[0].id });
-  } catch (err) {
-    console.error("Erreur lors de la création du trajet:", err);
-    res.status(500).json({ error: "Erreur lors de la création du trajet" });
   }
 });
 
@@ -1197,77 +1242,6 @@ app.get('/trajet/creer', async (req, res) => {
   }
 });
 
-// Route pour traiter la création d'un trajet
-app.post('/trajet/creer', async (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({ error: 'Utilisateur non connecté' });
-  }
-
-  const {
-    vehicule_id,
-    lieu_depart,
-    destination,
-    date_du_trajet,
-    heure_depart,
-    duree_du_trajet,
-    nombre_de_places,
-    prix_par_place
-  } = req.body;
-
-  try {
-    // Vérifier que le véhicule appartient bien au chauffeur
-    const vehiculeCheck = await db.query(
-      'SELECT id FROM vehicule WHERE id = $1 AND chauffeur_id = $2',
-      [vehicule_id, req.session.user.id]
-    );
-
-    if (vehiculeCheck.rows.length === 0) {
-      return res.status(403).json({ 
-        error: 'Vous n\'êtes pas autorisé à créer un trajet avec ce véhicule' 
-      });
-    }
-
-    // Créer le trajet
-    const result = await db.query(
-      `INSERT INTO trajet (
-        chauffeur_id,
-        vehicule_id,
-        lieu_depart,
-        destination,
-        date_du_trajet,
-        heure_depart,
-        duree_du_trajet,
-        nombre_de_places,
-        prix_par_place
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [
-        req.session.user.id,
-        vehicule_id,
-        lieu_depart,
-        destination,
-        date_du_trajet,
-        heure_depart,
-        duree_du_trajet,
-        nombre_de_places,
-        prix_par_place
-      ]
-    );
-
-    console.log("Trajet créé avec succès:", result.rows[0]);
-
-    res.status(201).json({
-      message: 'Trajet créé avec succès',
-      trajet_id: result.rows[0].id
-    });
-  } catch (error) {
-    console.error('Erreur lors de la création du trajet:', error);
-    res.status(500).json({ 
-      error: 'Une erreur est survenue lors de la création du trajet' 
-    });
-  }
-});
-
-//détails trajets//
 
 // Débogage de la requête pour vérifier pourquoi le trajet n'est pas trouvé
 
@@ -1349,66 +1323,6 @@ res.render("details", {
   }
 });
 
-app.get('/details/:id', async (req, res) => {
-  try {
-    // Récupérer les informations du trajet avec les détails du chauffeur et du véhicule
-    const result = await db.query(`
-      SELECT 
-        t.*,
-        u.nom as chauffeur_nom,
-        u.prenom as chauffeur_prenom,
-        u.email as chauffeur_email,
-        u.note as chauffeur_note,
-        v.marque,
-        v.modele,
-        v.couleur,
-        v.plaque_immatriculation,
-        v.preferences
-      FROM trajet t
-      JOIN users u ON t.chauffeur_id = u.id
-      JOIN vehicule v ON t.chauffeur_id = v.chauffeur_id
-      WHERE t.id = $1
-    `, [req.params.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).render('error', { message: 'Trajet non trouvé' });
-    }
-
-    const trajet = result.rows[0];
-
-    // Calculer le nombre de places restantes
-    const reservationsResult = await db.query(
-      'SELECT COUNT(*) as count FROM reservations WHERE trajet_id = $1',
-      [req.params.id]
-    );
-    
-    const placesReservees = parseInt(reservationsResult.rows[0].count);
-    trajet.places_restantes = trajet.nombre_de_places - placesReservees;
-
-    // Vérifier si l'utilisateur actuel a déjà réservé ce trajet
-    let dejaReserve = false;
-    if (req.session.user) {
-      const reservationResult = await db.query(
-        'SELECT * FROM reservations WHERE trajet_id = $1 AND user_id = $2',
-        [req.params.id, req.session.user.id]
-      );
-      dejaReserve = reservationResult.rows.length > 0;
-    }
-
-    res.render('details', { 
-      trajet,
-      user: req.session.user,
-      dejaReserve
-    });
-  } catch (error) {
-    console.error('Erreur lors de la récupération des détails du trajet:', error);
-    res.status(500).render('error', { 
-      message: 'Une erreur est survenue lors de la récupération des détails du trajet' 
-    });
-  }
-});
-
-
 app.post("/reserver-trajet", async (req, res) => {
   const { trajetId } = req.body;
   const user = req.session?.user;
@@ -1470,41 +1384,6 @@ app.post("/reserver-trajet", async (req, res) => {
   } catch (err) {
     console.error("❌ Erreur lors de la réservation :", err);
     res.status(500).send("Une erreur est survenue lors de la réservation.");
-  }
-});
-
-
-
-
-
-app.get("/trajet/:id", async (req, res, next) => {
-  // Vérification de l'ID pour s'assurer qu'il s'agit bien d'un entier
-  if (!/^\d+$/.test(req.params.id)) {
-    return next(); // Passer au middleware suivant si l'ID est invalide
-  }
-
-  const trajetId = parseInt(req.params.id, 10);
-
-  try {
-    const trajetResult = await db.query(
-      `SELECT t.*, u.nom AS chauffeur_nom, u.prenom AS chauffeur_prenom,
-              v.marque, v.modele, v.couleur
-       FROM trajet t 
-       LEFT JOIN users u ON t.chauffeur_id = u.id
-       LEFT JOIN vehicule v ON t.vehicule_id = v.id
-       WHERE t.id = $1`,
-      [trajetId]
-    );
-
-    if (trajetResult.rows.length === 0) {
-      return res.status(404).render("error", { message: "Trajet non trouvé" });
-    }
-
-    const trajet = trajetResult.rows[0];
-    res.render("trajet-details", { trajet });
-  } catch (err) {
-    console.error("Erreur lors de la récupération des détails du trajet:", err);
-    res.status(500).render("error", { message: "Erreur lors de la récupération des détails du trajet" });
   }
 });
 

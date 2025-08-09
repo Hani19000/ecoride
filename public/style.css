@@ -559,6 +559,8 @@ gap: 10rem;
 }
 
 
+
+
 @media (max-width: 1125px) {
     .search-fileds{
         flex-direction: column;

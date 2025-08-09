@@ -60,43 +60,126 @@
   <div class="historique-container">
     <h2>🕓 Historique de vos trajets</h2>
 
-    <% reservations.forEach(r => { %>
-      <div class="reservation-card">
-        <h5><%= r.lieu_depart %> ➜ <%= r.destination %></h5>
-        <p><strong>Date :</strong> <%= new Date(r.date_du_trajet).toLocaleDateString() %></p>
-        <p><strong>Heure :</strong> <%= r.heure_depart %></p>
-        <p><strong>Crédits utilisés :</strong> <%= r.credits_utilises %> crédits</p>
-        <span class="statut"><%= r.statut %></span>
+<% reservations.forEach(r => { %>
+  <div class="reservation-card">
+    <h5><%= r.lieu_depart %> ➜ <%= r.destination %></h5>
+    <p><strong>Date :</strong> <%= new Date(r.date_du_trajet).toLocaleDateString() %></p>
+    <p><strong>Heure :</strong> <%= (r.heure_depart || '').toString().slice(0,5) %></p>
+    <p><strong>Crédits utilisés :</strong> <%= r.credits_utilises %> crédits</p>
+    <span class="statut"><%= r.statut %></span>
 
-        <% if (user && user.role === 'chauffeur') { %>
-          <form action="/annuler-trajet" method="POST" onsubmit="return confirm('Voulez-vous vraiment annuler CE TRAJET ? Tous les passagers seront remboursés.');">
-            <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
-            <button type="submit" class="btn btn-danger btn-sm mt-2">❌ Annuler le trajet</button>
-          </form>
+    <!-- Annuler ma réservation (si tu veux laisser l'option pour les résas non terminées) -->
+    <% if (r.statut !== 'termine') { %>
+      <form action="/annuler-reservation" method="POST" onsubmit="return confirm('Annuler VOTRE réservation ? Vous serez remboursé.');">
+        <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
+        <button type="submit" class="btn btn-outline-danger btn-sm mt-2">↩️ Annuler ma réservation</button>
+      </form>
+    <% } %>
+
+    <!-- Formulaire d’avis : seulement si résa terminée et pas encore d’avis -->
+<% if (r.statut === 'termine' && !r._avis_deja_donne) { %>
+  <form class="avis-form mt-3 p-3 rounded shadow-sm" style="background:#f8fdfc;">
+    <input type="hidden" name="reservation_id" value="<%= r.reservation_id %>">
+    <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
+
+    <div class="mb-2">
+      <label class="form-label fw-bold">Note :</label><br>
+      <div class="star-rating" style="font-size:1.7rem; cursor:pointer; user-select:none;">
+        <% for (let i = 1; i <= 5; i++) { %>
+          <span class="star" data-value="<%= i %>">☆</span>
         <% } %>
-
-        <form action="/annuler-reservation" method="POST" onsubmit="return confirm('Annuler VOTRE réservation ? Vous serez remboursé.');">
-          <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
-          <button type="submit" class="btn btn-outline-danger btn-sm mt-2">↩️ Annuler ma réservation</button>
-        </form>
-
-        <% if (r.statut === 'termine' && !r.avis_deja_donne) { %>
-          <form action="/avis" method="POST" class="mt-3">
-            <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">
-            <input type="hidden" name="chauffeur_id" value="<%= r.chauffeur_id %>">
-
-            <label>Note (1 à 5) :</label>
-            <input type="number" name="note" min="1" max="5" required>
-
-            <label>Commentaire :</label>
-            <textarea name="commentaire" placeholder="Comment s'est passé le trajet ?"></textarea>
-
-            <button type="submit" class="btn btn-primary btn-sm">Envoyer l'avis</button>
-          </form>
-        <% } %>
+        <input type="hidden" name="note" required>
       </div>
-    <% }) %>
+    </div>
+
+    <div class="mb-2">
+      <label class="form-label fw-bold">Commentaire :</label>
+      <textarea name="commentaire" class="form-control" placeholder="Partagez votre expérience..." rows="2"></textarea>
+      <div class="form-text">Si la note ≤ 3, un commentaire est requis.</div>
+    </div>
+
+    <button type="submit" class="btn btn-success w-100">Envoyer l'avis ✅</button>
+    <div class="alert mt-3 d-none confirmation-msg" role="alert"></div>
+  </form>
+<% } %>
+  </div>
+<% }) %>
   </div>
 </div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  // étoiles
+  document.querySelectorAll(".star-rating").forEach(rating => {
+    const stars = rating.querySelectorAll(".star");
+    const input = rating.querySelector("input[name='note']");
+
+    function paint(upto) {
+      stars.forEach(s => {
+        const v = Number(s.dataset.value);
+        s.textContent = v <= upto ? '★' : '☆';
+      });
+    }
+    paint(0);
+
+    stars.forEach(star => {
+      star.addEventListener("mouseover", () => paint(Number(star.dataset.value)));
+      star.addEventListener("mouseout",  () => paint(Number(input.value || 0)));
+      star.addEventListener("click",     () => {
+        input.value = star.dataset.value;
+        paint(Number(input.value));
+      });
+    });
+  });
+
+  // submit AJAX
+  document.querySelectorAll(".avis-form").forEach(form => {
+    form.addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const msg = this.querySelector(".confirmation-msg");
+      msg.classList.add("d-none");
+      msg.classList.remove("alert-success","alert-danger");
+
+      const fd = new FormData(this);
+      const note = parseInt(fd.get("note"), 10);
+      if (!Number.isInteger(note) || note < 1 || note > 5) {
+        msg.textContent = "Choisis une note en cliquant sur une étoile.";
+        msg.classList.remove("d-none");
+        msg.classList.add("alert","alert-danger");
+        return;
+      }
+
+      const payload = Object.fromEntries(fd.entries());
+
+      try {
+        const res = await fetch("/avis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.ok) {
+          msg.textContent = data.message || "Avis envoyé, merci !";
+          msg.classList.remove("d-none");
+          msg.classList.add("alert","alert-success");
+          this.querySelector("button[type='submit']").disabled = true;
+          setTimeout(() => this.remove(), 1200);
+        } else {
+          msg.textContent = data.message || "Erreur lors de l'envoi.";
+          msg.classList.remove("d-none");
+          msg.classList.add("alert","alert-danger");
+        }
+      } catch(err) {
+        console.error("Erreur envoi avis :", err);
+        msg.textContent = "Erreur réseau, réessayez.";
+        msg.classList.remove("d-none");
+        msg.classList.add("alert","alert-danger");
+      }
+    });
+  });
+});
+</script>
 
 <%- include('partials/footer') %>
