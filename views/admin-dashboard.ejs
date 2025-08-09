@@ -1,0 +1,529 @@
+<%- include('partials/header', { user, pageClass: 'admin-dashboard' }) %>
+
+<main class="dashboard-container">
+  <div class="dashboard-header">
+    <div class="header-content">
+      <h1 class="dashboard-title">
+        <span class="title-icon">📊</span>
+        <span>Tableau de bord</span>
+        <span class="admin-badge">Admin</span>
+      </h1>
+    </div>
+  </div>
+
+  <div class="dashboard-content">
+    <div class="stats-grid">
+      <!-- Gains Card -->
+      <div class="stat-card gains-card">
+        <div class="card-header">
+          <div class="stat-icon">💰</div>
+          <div class="trend-up">+12%</div>
+        </div>
+        <div class="card-body">
+          <div class="stat-label">Gains cumulés (10%)</div>
+          <div class="stat-value primary-value"><%= totalGain.toFixed(2) %>€</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 75%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Card -->
+      <div class="stat-card">
+        <div class="card-header">
+          <div class="stat-icon blue">👥</div>
+        </div>
+        <div class="card-body">
+          <div class="stat-label">Utilisateurs</div>
+          <div class="stat-value"><%= stats.total_users %></div>
+        </div>
+      </div>
+
+      <!-- Trips Card -->
+      <div class="stat-card">
+        <div class="card-header">
+          <div class="stat-icon purple">🚗</div>
+        </div>
+        <div class="card-body">
+          <div class="stat-label">Trajets</div>
+          <div class="stat-value"><%= stats.total_trajets %></div>
+        </div>
+      </div>
+
+      <!-- Reservations Card -->
+      <div class="stat-card">
+        <div class="card-header">
+          <div class="stat-icon orange">📅</div>
+        </div>
+        <div class="card-body">
+          <div class="stat-label">Réservations</div>
+          <div class="stat-value"><%= stats.total_reservations %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>📈 Covoiturages terminés / jour</h3>
+          <div class="chart-actions">
+            <button class="btn-icon">⚙️</button>
+          </div>
+        </div>
+        <div class="chart-body">
+          <canvas id="covoiturageChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>💎 Gains de la plateforme / jour</h3>
+          <div class="chart-actions">
+            <button class="btn-icon">⚙️</button>
+          </div>
+        </div>
+        <div class="chart-body">
+          <canvas id="gainsChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- Données dashboard (injection 100% sûre) -->
+<script id="dash-data" type="application/json">
+<%- JSON.stringify({
+  labelsCovoit: labelsCovoit || [],
+  dataCovoit:   dataCovoit   || [],
+  labelsGains:  labelsGains  || [],
+  dataGains:    dataGains    || []
+}) %>
+</script>
+
+<script>
+  // Récupération et parsing des données
+  const _raw = document.getElementById('dash-data').textContent;
+  const { labelsCovoit = [], dataCovoit = [], labelsGains = [], dataGains = [] } = JSON.parse(_raw || '{}');
+
+  // Mise en forme des dates pour l'affichage FR
+  const labelsC = labelsCovoit.map(d => new Date(d).toLocaleDateString('fr-FR'));
+  const labelsG = labelsGains.map(d => new Date(d).toLocaleDateString('fr-FR'));
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { 
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#ffffff',
+        titleColor: '#1f2937',
+        bodyColor: '#6b7280',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        cornerRadius: 12,
+        displayColors: false,
+        titleFont: { weight: '600' },
+        bodyFont: { size: 13 },
+        padding: 12
+      }
+    },
+    scales: {
+      y: { 
+        beginAtZero: true,
+        border: { display: false },
+        grid: { 
+          color: '#f3f4f6',
+          drawTicks: false
+        },
+        ticks: {
+          color: '#9ca3af',
+          font: { size: 11, weight: '500' },
+          padding: 8
+        }
+      },
+      x: { 
+        border: { display: false },
+        grid: { display: false },
+        ticks: {
+          color: '#9ca3af',
+          font: { size: 11, weight: '500' },
+          maxRotation: 45
+        }
+      }
+    }
+  };
+
+  // Graphique Covoiturages
+  new Chart(document.getElementById('covoiturageChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labelsC,
+      datasets: [{
+        data: dataCovoit,
+        backgroundColor: '#3b82f6',
+        borderRadius: 6,
+        borderSkipped: false,
+        hoverBackgroundColor: '#2563eb'
+      }]
+    },
+    options: {
+      ...chartOptions,
+      scales: {
+        ...chartOptions.scales,
+        y: { 
+          ...chartOptions.scales.y, 
+          title: { 
+            display: true, 
+            text: 'Covoiturages',
+            color: '#6b7280',
+            font: { size: 12, weight: '600' },
+            padding: { bottom: 10 }
+          } 
+        }
+      }
+    }
+  });
+
+  // Graphique Gains
+  new Chart(document.getElementById('gainsChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labelsG,
+      datasets: [{
+        data: dataGains,
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderColor: '#10b981',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#10b981',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 3,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#059669',
+        pointHoverBorderColor: '#ffffff'
+      }]
+    },
+    options: {
+      ...chartOptions,
+      scales: {
+        ...chartOptions.scales,
+        y: { 
+          ...chartOptions.scales.y, 
+          title: { 
+            display: true, 
+            text: 'Gains (€)',
+            color: '#6b7280',
+            font: { size: 12, weight: '600' },
+            padding: { bottom: 10 }
+          } 
+        }
+      }
+    }
+  });
+
+  // Animations d'entrée
+  document.addEventListener('DOMContentLoaded', function() {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('animate-in');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.stat-card, .chart-card').forEach(el => {
+      observer.observe(el);
+    });
+  });
+</script>
+
+<style>
+  /* Reset et base */
+
+  .dashboard-container {
+    width: 100%;
+    padding: 0;
+  }
+
+  /* Header */
+  .dashboard-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 3rem 2rem 6rem;
+    margin-bottom: -2rem;
+  }
+
+  .header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .dashboard-title {
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .title-icon {
+    font-size: 3rem;
+  }
+
+  .admin-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.5rem 1.2rem;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Content */
+  .dashboard-content {
+    padding: 4rem 2rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #f1f5f9;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .stat-card.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .gains-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+    border: 1px solid #dcfce7;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: #10b981;
+  }
+
+  .stat-icon.blue { background: #3b82f6; }
+  .stat-icon.purple { background: #8b5cf6; }
+  .stat-icon.orange { background: #f59e0b; }
+
+  .trend-up {
+    color: #059669;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #dcfce7;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+  }
+
+  .card-body {
+    flex: 1;
+  }
+
+  .stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-value {
+    color: #111827;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .primary-value {
+    color: #059669;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 1rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 3px;
+    transition: width 1s ease-out;
+  }
+
+  /* Charts Grid */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .chart-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #f1f5f9;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .chart-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .chart-card.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .chart-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chart-header h3 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .btn-icon {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #6b7280;
+    transition: all 0.2s;
+  }
+
+  .btn-icon:hover {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .chart-body {
+    padding: 1.5rem;
+    height: 350px;
+  }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .stats-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    
+    .gains-card {
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-header {
+      padding: 2rem 1rem 3rem;
+    }
+    
+    .dashboard-title {
+      font-size: 2rem;
+      flex-direction: column;
+      text-align: center;
+      gap: 0.5rem;
+    }
+    
+    .dashboard-content {
+      padding: 1rem;
+    }
+    
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .gains-card {
+      grid-column: span 1;
+    }
+    
+    .charts-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+    }
+  }
+
+  /* Animations */
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .stat-card:nth-child(1).animate-in { animation: slideIn 0.6s ease-out 0.1s forwards; }
+  .stat-card:nth-child(2).animate-in { animation: slideIn 0.6s ease-out 0.2s forwards; }
+  .stat-card:nth-child(3).animate-in { animation: slideIn 0.6s ease-out 0.3s forwards; }
+  .stat-card:nth-child(4).animate-in { animation: slideIn 0.6s ease-out 0.4s forwards; }
+  .chart-card:nth-child(1).animate-in { animation: slideIn 0.6s ease-out 0.5s forwards; }
+  .chart-card:nth-child(2).animate-in { animation: slideIn 0.6s ease-out 0.6s forwards; }
+</style>

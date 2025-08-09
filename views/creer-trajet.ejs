@@ -1,97 +1,653 @@
 <%- include('partials/header') %>
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-primary text-white text-center">
-                    <h2>Créer un nouveau trajet</h2>
-                </div>
-                <div class="card-body">
-                    <% if (vehicule) { %>
-                        <div class="mb-4">
-                            <h4 class="text-center">Informations du véhicule</h4>
-                            <div class="row text-center">
-                                <div class="col-md-6">
-                                    <p><strong>Marque :</strong> <%= vehicule.marque %></p>
-                                    <p><strong>Modèle :</strong> <%= vehicule.modele %></p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p><strong>Couleur :</strong> <%= vehicule.couleur || 'Non spécifié' %></p>
-                                    <p><strong>Places disponibles :</strong> <%= vehicule.nombre_places_disponibles %></p>
-                                </div>
-                            </div>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+
+<div class="create-trip-page">
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-10 offset-md-1 col-lg-8 offset-lg-2">
+                <div class="main-card card shadow-lg border-0">
+                    <div class="card-header text-center">
+                        <div class="header-content">
+                            <i class="bi bi-plus-circle-fill header-icon"></i>
+                            <h2 class="header-title">Créer un nouveau trajet</h2>
+                            <p class="header-subtitle">Partagez votre voyage et réduisez les coûts</p>
                         </div>
-
-                        <form id="trajetForm">
-                            <input type="hidden" name="vehicule_id" value="<%= vehicule.id %>">
-                            
-                            <div class="mb-3">
-                                <label for="lieu_depart" class="form-label">Lieu de départ</label>
-                                <input type="text" class="form-control" id="lieu_depart" name="lieu_depart" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="destination" class="form-label">Destination</label>
-                                <input type="text" class="form-control" id="destination" name="destination" required>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="date_du_trajet" class="form-label">Date du trajet</label>
-                                    <input type="date" class="form-control" id="date_du_trajet" name="date_du_trajet" required>
+                    </div>
+                    
+                    <div class="card-body">
+                        <% if (vehicule) { %>
+                            <!-- Informations du véhicule -->
+                            <div class="vehicle-info-section mb-4">
+                                <div class="section-header">
+                                    <i class="bi bi-car-front-fill"></i>
+                                    <h4>Informations du véhicule</h4>
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="heure_depart" class="form-label">Heure de départ</label>
-                                    <input type="time" class="form-control" id="heure_depart" name="heure_depart" required>
+                                <div class="vehicle-details">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="info-card">
+                                                <i class="bi bi-award-fill"></i>
+                                                <div>
+                                                    <span class="info-label">Marque</span>
+                                                    <span class="info-value"><%= vehicule.marque %></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="info-card">
+                                                <i class="bi bi-gear-fill"></i>
+                                                <div>
+                                                    <span class="info-label">Modèle</span>
+                                                    <span class="info-value"><%= vehicule.modele %></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="info-card">
+                                                <i class="bi bi-palette-fill"></i>
+                                                <div>
+                                                    <span class="info-label">Couleur</span>
+                                                    <span class="info-value"><%= vehicule.couleur || 'Non spécifié' %></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="info-card">
+                                                <i class="bi bi-people-fill"></i>
+                                                <div>
+                                                    <span class="info-label">Places disponibles</span>
+                                                    <span class="info-value"><%= vehicule.nombre_places_disponibles %></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label for="duree_du_trajet" class="form-label">Durée du trajet</label>
-                                <input type="time" class="form-control" id="duree_du_trajet" name="duree_du_trajet" required>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="nombre_de_places" class="form-label">Nombre de places</label>
-                                    <input type="number" class="form-control" id="nombre_de_places" 
-                                            name="nombre_de_places" min="1" 
-                                            max="<%= vehicule.nombre_places_disponibles %>"
-                                            value="<%= vehicule.nombre_places_disponibles %>" required>
+                            <!-- Formulaire de création -->
+                            <form id="trajetForm" class="trip-form">
+                                <input type="hidden" name="vehicule_id" value="<%= vehicule.id %>">
+                                
+                                <!-- Section Itinéraire -->
+                                <div class="form-section">
+                                    <div class="section-header">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <h5>Itinéraire</h5>
+                                    </div>
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <div class="form-group">
+                                                <label for="lieu_depart" class="form-label">
+                                                    <i class="bi bi-geo-fill me-1"></i>Lieu de départ
+                                                </label>
+                                                <input type="text" class="form-control" id="lieu_depart" 
+                                                       name="lieu_depart" placeholder="Ex: Gare de Lyon, Paris" required>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-12">
+                                            <div class="form-group">
+                                                <label for="destination" class="form-label">
+                                                    <i class="bi bi-flag-fill me-1"></i>Destination
+                                                </label>
+                                                <input type="text" class="form-control" id="destination" 
+                                                       name="destination" placeholder="Ex: Gare Part-Dieu, Lyon" required>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="prix_par_place" class="form-label">Prix par place (€)</label>
-                                    <input type="number" class="form-control" id="prix_par_place" 
-                                            name="prix_par_place" min="0" step="0.01" required>
+
+                                <!-- Section Date et Heure -->
+                                <div class="form-section">
+                                    <div class="section-header">
+                                        <i class="bi bi-calendar-event-fill"></i>
+                                        <h5>Planification</h5>
+                                    </div>
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="date_du_trajet" class="form-label">
+                                                    <i class="bi bi-calendar3 me-1"></i>Date du trajet
+                                                </label>
+                                                <input type="date" class="form-control" id="date_du_trajet" 
+                                                       name="date_du_trajet" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="heure_depart" class="form-label">
+                                                    <i class="bi bi-clock-fill me-1"></i>Heure de départ
+                                                </label>
+                                                <input type="time" class="form-control" id="heure_depart" 
+                                                       name="heure_depart" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="form-group">
+                                                <label for="duree_du_trajet" class="form-label">
+                                                    <i class="bi bi-stopwatch-fill me-1"></i>Durée estimée du trajet
+                                                </label>
+                                                <input type="time" class="form-control" id="duree_du_trajet" 
+                                                       name="duree_du_trajet" placeholder="Ex: 02:30" required>
+                                                <div class="form-text">Format HH:MM (heures:minutes)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section Places et Prix -->
+                                <div class="form-section">
+                                    <div class="section-header">
+                                        <i class="bi bi-cash-coin"></i>
+                                        <h5>Places et tarification</h5>
+                                    </div>
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="nombre_de_places" class="form-label">
+                                                    <i class="bi bi-person-plus-fill me-1"></i>Nombre de places à proposer
+                                                </label>
+                                                <input type="number" class="form-control" id="nombre_de_places" 
+                                                       name="nombre_de_places" min="1" 
+                                                       max="<%= vehicule.nombre_places_disponibles %>"
+                                                       value="<%= vehicule.nombre_places_disponibles %>" required>
+                                                <div class="form-text">Maximum: <%= vehicule.nombre_places_disponibles %> places</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="prix_par_place" class="form-label">
+                                                    <i class="bi bi-currency-euro me-1"></i>Prix par place
+                                                </label>
+                                                <input type="text" 
+                                                       class="form-control" 
+                                                       id="prix_par_place" 
+                                                       name="prix_par_place" 
+                                                       placeholder="15.50" 
+                                                       required
+                                                       style="background: white !important; color: black !important; opacity: 1 !important;">
+                                                <div class="form-text">Prix suggéré basé sur les frais de carburant</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Boutons d'action -->
+                                <div class="action-buttons">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="bi bi-check-circle-fill me-2"></i>
+                                        Créer le trajet
+                                    </button>
+                                    <a href="/profile" class="btn btn-outline-secondary btn-lg">
+                                        <i class="bi bi-x-circle me-2"></i>
+                                        Annuler
+                                    </a>
+                                </div>
+                            </form>
+                        <% } else { %>
+                            <!-- État d'erreur - Aucun véhicule -->
+                            <div class="error-state">
+                                <div class="error-icon">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                </div>
+                                <div class="error-content">
+                                    <h4>Véhicule requis</h4>
+                                    <p>Aucun véhicule n'a été sélectionné. Vous devez d'abord enregistrer un véhicule dans votre profil pour pouvoir créer un trajet.</p>
+                                    <a href="/profile" class="btn btn-primary btn-lg">
+                                        <i class="bi bi-person-circle me-2"></i>
+                                        Aller au profil
+                                    </a>
                                 </div>
                             </div>
-
-                            <div class="text-center mt-4">
-                                <button type="submit" class="btn btn-primary">Créer le trajet</button>
-                                <a href="/profile" class="btn btn-secondary ms-2">Annuler</a>
-                            </div>
-                        </form>
-                    <% } else { %>
-                        <div class="alert alert-danger text-center">
-                            Aucun véhicule n'a été sélectionné. Veuillez d'abord enregistrer un véhicule.
-                        </div>
-                        <div class="text-center">
-                            <a href="/profile" class="btn btn-primary">Retour au profil</a>
-                        </div>
-                    <% } %>
+                        <% } %>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Notification Toast -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="notification-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="toast-icon me-2"></i>
+            <strong class="me-auto toast-title">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
+</div>
+
+<style>
+:root {
+    --primary-color: #06df8c;
+    --secondary-color: #35a181;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --light-bg: rgba(255, 255, 255, 0.95);
+    --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    --card-shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.15);
+    --border-radius: 15px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.create-trip-page {
+    background: #00ffbf;
+    min-height: 100vh;
+    padding: 2rem 0;
+}
+
+.main-card {
+    background: var(--light-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    transition: var(--transition);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+}
+
+.main-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    padding: 2.5rem 2rem;
+    position: relative;
+}
+
+.card-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="2" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
+}
+
+.header-content {
+    position: relative;
+    z-index: 2;
+}
+
+.header-icon {
+    font-size: 3rem;
+    color: white;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.header-title {
+    color: white;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.header-subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card-body {
+    padding: 2.5rem;
+}
+
+/* Section Véhicule */
+.vehicle-info-section {
+    background: linear-gradient(135deg, #f8f9ff, #e3f2fd);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    border: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    gap: 0.75rem;
+}
+
+.section-header i {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.section-header h4,
+.section-header h5 {
+    margin: 0;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.info-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: var(--transition);
+}
+
+.info-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.info-card i {
+    font-size: 1.25rem;
+    color: var(--secondary-color);
+    min-width: 20px;
+}
+
+.info-card .info-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.info-card .info-value {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 1rem;
+}
+
+/* Sections du formulaire */
+.form-section {
+    background: rgba(248, 249, 255, 0.7);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+}
+
+.form-label i {
+    color: var(--primary-color);
+}
+
+.form-control {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    transition: var(--transition);
+    background: white;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(6, 223, 140, 0.15);
+    background: white;
+}
+
+.form-control:hover {
+    border-color: var(--secondary-color);
+}
+
+.input-group-text {
+    background: var(--primary-color);
+    color: white;
+    border: 2px solid var(--primary-color);
+    font-weight: 600;
+}
+
+.form-control.is-invalid {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
+}
+
+.form-control.is-valid {
+    border-color: var(--success-color);
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.15);
+}
+
+.invalid-feedback {
+    display: none;
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+    background: rgba(220, 53, 69, 0.1);
+    padding: 0.5rem;
+    border-radius: 8px;
+    border-left: 3px solid var(--danger-color);
+}
+
+.form-text {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
+/* Boutons d'action */
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 3rem;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border-radius: 25px;
+    font-weight: 600;
+    padding: 0.75rem 2rem;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    border: 2px solid transparent;
+}
+
+.btn-lg {
+    font-size: 1.1rem;
+    padding: 1rem 2.5rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    color: white;
+    box-shadow: 0 4px 15px rgba(6, 223, 140, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(6, 223, 140, 0.4);
+    color: white;
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    border-color: #6c757d;
+    color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+    background: #6c757d;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+}
+
+/* État d'erreur */
+.error-state {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.error-icon {
+    font-size: 4rem;
+    color: var(--warning-color);
+    margin-bottom: 1.5rem;
+}
+
+.error-content h4 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.error-content p {
+    color: #6c757d;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+/* États de chargement */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.btn.loading {
+    position: relative;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: auto;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Notifications */
+.toast {
+    border-radius: var(--border-radius);
+    border: none;
+    box-shadow: var(--card-shadow);
+}
+
+.toast-header {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.toast-icon.success { color: var(--success-color); }
+.toast-icon.error { color: var(--danger-color); }
+.toast-icon.warning { color: var(--warning-color); }
+
+/* Animations */
+.main-card {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .create-trip-page {
+        padding: 1rem 0;
+    }
+    
+    .card-header {
+        padding: 2rem 1.5rem;
+    }
+    
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    .form-section {
+        padding: 1.5rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .btn-lg {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .info-card {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .header-icon {
+        font-size: 2.5rem;
+    }
+    
+    .header-title {
+        font-size: 1.5rem;
+    }
+    
+    .header-subtitle {
+        font-size: 1rem;
+    }
+}
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const trajetForm = document.getElementById('trajetForm');
     
+    // Définir la date minimum à aujourd'hui
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('date_du_trajet');
+    if (dateInput) {
+        dateInput.min = today;
+    }
+    
     if (trajetForm) {
         trajetForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            // Désactiver le bouton et afficher le chargement
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Création en cours...';
             
             const formData = new FormData(this);
             const data = {};
@@ -111,17 +667,143 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
 
                 if (response.ok) {
-                    alert('✅ Trajet créé avec succès !');
-                    window.location.href = '/trajets';
+                    showNotification('Trajet créé avec succès !', 'success', 'bi-check-circle-fill');
+                    setTimeout(() => {
+                        window.location.href = '/trajets';
+                    }, 1500);
                 } else {
-                    alert('❌ Erreur : ' + (result.error || 'Une erreur est survenue'));
+                    showNotification('Erreur : ' + (result.error || 'Une erreur est survenue'), 'error', 'bi-exclamation-triangle-fill');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('❌ Une erreur est survenue lors de la création du trajet');
+                showNotification('Une erreur est survenue lors de la création du trajet', 'error', 'bi-exclamation-triangle-fill');
+            } finally {
+                // Restaurer le bouton
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         });
     }
+    
+    // Validation en temps réel
+    setupRealTimeValidation();
 });
+
+function showNotification(message, type, iconClass) {
+    const toast = document.getElementById('notification-toast');
+    const toastIcon = toast.querySelector('.toast-icon');
+    const toastTitle = toast.querySelector('.toast-title');
+    const toastBody = toast.querySelector('.toast-body');
+    
+    // Configuration selon le type
+    const configs = {
+        success: { title: 'Succès', class: 'text-success' },
+        error: { title: 'Erreur', class: 'text-danger' },
+        warning: { title: 'Attention', class: 'text-warning' }
+    };
+    
+    const config = configs[type] || configs.success;
+    
+    toastIcon.className = `toast-icon me-2 ${iconClass} ${config.class}`;
+    toastTitle.textContent = config.title;
+    toastBody.textContent = message;
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+function setupRealTimeValidation() {
+    // Validation du prix - uniquement des chiffres et décimales
+    const prixInput = document.getElementById('prix_par_place');
+    if (prixInput) {
+        prixInput.addEventListener('input', function() {
+            const value = this.value;
+            const numberRegex = /^[0-9]+([.,][0-9]+)?$/;
+            
+            // Si le champ n'est pas vide et ne contient pas que des chiffres
+            if (value && !numberRegex.test(value)) {
+                this.setCustomValidity('Le prix doit contenir uniquement des chiffres (ex: 15.50)');
+                this.classList.add('is-invalid');
+                showFieldError(this, 'Seuls les chiffres et décimales sont autorisés');
+            } else {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+                hideFieldError(this);
+            }
+        });
+        
+        // Validation finale quand on quitte le champ
+        prixInput.addEventListener('blur', function() {
+            const value = parseFloat(this.value.replace(',', '.'));
+            if (this.value && (isNaN(value) || value <= 0 || value > 200)) {
+                this.setCustomValidity('Le prix doit être un nombre entre 0.01€ et 200€');
+                this.classList.add('is-invalid');
+                showFieldError(this, 'Prix invalide : entre 0.01€ et 200€');
+            } else if (this.value) {
+                // Normaliser le format (remplacer virgule par point)
+                this.value = value.toFixed(2);
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+                hideFieldError(this);
+            }
+        });
+    }
+    
+    // Validation du nombre de places
+    const placesInput = document.getElementById('nombre_de_places');
+    if (placesInput) {
+        placesInput.addEventListener('input', function() {
+            const value = this.value;
+            const numberRegex = /^[0-9]+$/;
+            
+            if (value && !numberRegex.test(value)) {
+                this.setCustomValidity('Le nombre de places doit être un nombre entier');
+                this.classList.add('is-invalid');
+                showFieldError(this, 'Seuls les chiffres sont autorisés');
+            } else {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+                hideFieldError(this);
+            }
+        });
+        
+        placesInput.addEventListener('blur', function() {
+            const value = parseInt(this.value);
+            const max = parseInt(this.max);
+            if (this.value && (isNaN(value) || value < 1 || value > max)) {
+                this.setCustomValidity(`Le nombre de places doit être entre 1 et ${max}`);
+                this.classList.add('is-invalid');
+                showFieldError(this, `Nombre invalide : entre 1 et ${max} places`);
+            } else if (this.value) {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+                hideFieldError(this);
+            }
+        });
+    }
+}
+
+// Fonctions pour afficher/cacher les erreurs
+function showFieldError(input, message) {
+    let errorDiv = input.parentNode.querySelector('.invalid-feedback');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'invalid-feedback';
+        input.parentNode.appendChild(errorDiv);
+    }
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function hideFieldError(input) {
+    const errorDiv = input.parentNode.querySelector('.invalid-feedback');
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+}
 </script>
+
 <%- include('partials/footer') %>

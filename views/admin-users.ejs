@@ -1,0 +1,657 @@
+<%- include('partials/header', { title: 'Utilisateurs', user, pageClass: 'users-admin-page' }) %>
+
+<main class="users-page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <div class="title-section">
+        <h1 class="page-title">
+          <span class="title-icon">👥</span>
+          <span>Gestion des utilisateurs</span>
+        </h1>
+        <p class="page-subtitle">Gérez les comptes utilisateurs de la plateforme</p>
+      </div>
+      
+      <div class="header-stats">
+        <div class="stat-item">
+          <div class="stat-number"><%= users ? users.length : 0 %></div>
+          <div class="stat-label">Total utilisateurs</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number"><%= users ? users.filter(u => u.presence === 'online').length : 0 %></div>
+          <div class="stat-label">En ligne</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number"><%= users ? users.filter(u => u.suspended).length : 0 %></div>
+          <div class="stat-label">Suspendus</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <% if (!users || users.length === 0) { %>
+      <div class="empty-state">
+        <div class="empty-icon">👤</div>
+        <h3>Aucun utilisateur</h3>
+        <p>Il n'y a aucun utilisateur enregistré pour le moment.</p>
+      </div>
+    <% } else { %>
+      <div class="users-table-container">
+        <div class="table-header">
+          <div class="table-title">
+            <h2>Liste des utilisateurs</h2>
+            <span class="users-count"><%= users.length %> utilisateur<%= users.length > 1 ? 's' : '' %></span>
+          </div>
+          
+          <div class="table-actions">
+            <div class="search-box">
+              <input type="text" id="searchUsers" placeholder="Rechercher un utilisateur..." class="form-control">
+              <span class="search-icon">🔍</span>
+            </div>
+            
+            <div class="filter-dropdown">
+              <select id="roleFilter" class="form-select">
+                <option value="">Tous les rôles</option>
+                <option value="utilisateur">Utilisateurs</option>
+                <option value="employe">Employés</option>
+                <option value="admin">Admins</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modern-table">
+          <div class="table-responsive">
+            <table class="table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Utilisateur</th>
+                  <th>Rôle</th>
+                  <th>Activité</th>
+                  <th>Crédits</th>
+                  <th>Statut</th>
+                  <th class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% users.forEach(u => { %>
+                  <tr class="user-row" data-role="<%= u.role === 'passager' || u.role === 'chauffeur' ? 'utilisateur' : u.role %>">
+                    <td>
+                      <div class="user-info">
+                        <div class="user-avatar">
+                          <%= (u.prenom || 'U')[0].toUpperCase() %>
+                        </div>
+                        <div class="user-details">
+                          <div class="user-name"><%= u.prenom %> <%= u.nom %></div>
+                          <div class="user-email"><%= u.email %></div>
+                        </div>
+                      </div>
+                    </td>
+                    
+                    <td>
+                      <span class="role-badge role-<%= u.role === 'passager' || u.role === 'chauffeur' ? 'user' : u.role %>">
+                        <%= (u.role === 'passager' || u.role === 'chauffeur') ? 'Utilisateur' : u.role.charAt(0).toUpperCase() + u.role.slice(1) %>
+                      </span>
+                    </td>
+                    
+                    <td>
+                      <div class="activity-info">
+                        <div class="activity-item">
+                          <span class="activity-icon">🚗</span>
+                          <span><%= u.nb_trajets_crees || 0 %> trajets</span>
+                        </div>
+                        <div class="activity-item">
+                          <span class="activity-icon">📅</span>
+                          <span><%= u.nb_reservations || 0 %> réservations</span>
+                        </div>
+                      </div>
+                    </td>
+                    
+                    <td>
+                      <div class="credits-display">
+                        <span class="credits-icon">💰</span>
+                        <span class="credits-amount"><%= u.credits || 0 %></span>
+                      </div>
+                    </td>
+                    
+                    <td>
+                      <div class="status-container">
+                        <div class="presence-status <%= u.presence === 'online' ? 'online' : 'offline' %>">
+                          <div class="status-dot"></div>
+                          <span><%= u.presence === 'online' ? 'En ligne' : 'Hors ligne' %></span>
+                        </div>
+                        <% if (u.suspended) { %>
+                          <div class="suspended-badge">Suspendu</div>
+                        <% } %>
+                      </div>
+                    </td>
+                    
+                  </td>
+                  <td class="text-end">
+                    <form action="/admin/users/<%= u.id %>/suspend" method="post" class="d-inline">
+                      <button class="btn btn-sm <%= u.suspended ? 'btn-success' : 'btn-warning' %>">
+                        <%= u.suspended ? 'Réactiver' : 'Suspendre' %>
+                      </button>
+                    </form>
+                  </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</main>
+
+<%- include('partials/footer') %>
+
+<script>
+// Fonction de confirmation
+function confirmAction(action) {
+  return confirm(action + ' ce compte ?');
+}
+
+// Recherche en temps réel
+document.getElementById('searchUsers')?.addEventListener('input', function(e) {
+  const searchTerm = e.target.value.toLowerCase();
+  const rows = document.querySelectorAll('#usersTable tbody tr');
+  
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(searchTerm) ? '' : 'none';
+  });
+});
+
+// Filtrage par rôle
+document.getElementById('roleFilter')?.addEventListener('change', function(e) {
+  const selectedRole = e.target.value;
+  const rows = document.querySelectorAll('.user-row');
+  
+  rows.forEach(row => {
+    const userRole = row.dataset.role;
+    row.style.display = !selectedRole || userRole === selectedRole ? '' : 'none';
+  });
+});
+
+// Animation d'entrée des lignes
+document.addEventListener('DOMContentLoaded', function() {
+  const rows = document.querySelectorAll('.user-row');
+  rows.forEach((row, index) => {
+    row.style.opacity = '0';
+    row.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+      row.style.transition = 'all 0.4s ease';
+      row.style.opacity = '1';
+      row.style.transform = 'translateY(0)';
+    }, index * 50);
+  });
+});
+
+// Fonction pour afficher les détails (à implémenter)
+function showUserDetails(userId) {
+  alert('Fonctionnalité à implémenter : détails de l\'utilisateur ' + userId);
+}
+</script>
+
+<style>
+/* Base */
+
+.users-page-container {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Header */
+.page-header {
+  background: rgb(80, 178, 163);
+  padding: 3rem 0 2rem;
+  margin-bottom: -2rem;
+}
+
+.header-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title-section {
+  color: white;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.title-icon {
+  font-size: 2.5rem;
+}
+
+.page-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.header-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-item {
+  text-align: center;
+  color: white;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  opacity: 0.9;
+  margin-top: 0.25rem;
+}
+
+/* Content */
+.page-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 2rem 2rem;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Table Container */
+.users-table-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.table-header {
+  padding: 2rem 2rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.table-title h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+}
+
+.users-count {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.table-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-box input {
+  padding-left: 2.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  width: 250px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.filter-dropdown select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  min-width: 150px;
+}
+
+/* Modern Table */
+.modern-table {
+  overflow-x: auto;
+}
+
+.table {
+  margin: 0;
+}
+
+.table thead th {
+  background: #f8fafc;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table tbody td {
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 1.5rem 1rem;
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* User Info */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.user-name {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.user-email {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Role Badges */
+.role-badge {
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.role-user { background: #dbeafe; color: #1e40af; }
+.role-employe { background: #f3e8ff; color: #7c3aed; }
+.role-admin { background: #fee2e2; color: #dc2626; }
+
+/* Activity Info */
+.activity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.activity-icon {
+  font-size: 1rem;
+}
+
+/* Credits Display */
+.credits-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.credits-icon {
+  font-size: 1rem;
+}
+
+.credits-amount {
+  font-weight: 600;
+  color: #059669;
+}
+
+/* Status */
+.status-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.presence-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.presence-status.online .status-dot {
+  background: #10b981;
+  animation: pulse 2s infinite;
+}
+
+.presence-status.offline .status-dot {
+  background: #6b7280;
+}
+
+.presence-status.online {
+  color: #059669;
+}
+
+.presence-status.offline {
+  color: #6b7280;
+}
+
+.suspended-badge {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.suspend-btn {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fbbf24;
+}
+
+.suspend-btn:hover {
+  background: #fed7aa;
+  transform: translateY(-1px);
+}
+
+.activate-btn {
+  background: #dcfce7;
+  color: #059669;
+  border: 1px solid #34d399;
+}
+
+.activate-btn:hover {
+  background: #bbf7d0;
+  transform: translateY(-1px);
+}
+
+.info-btn {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #a5b4fc;
+}
+
+.info-btn:hover {
+  background: #c7d2fe;
+  transform: translateY(-1px);
+}
+
+.btn-icon {
+  font-size: 0.875rem;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 2rem;
+  }
+  
+  .header-stats {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    padding: 2rem 0 4rem;
+  }
+  
+  .page-title {
+    font-size: 2rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .header-stats {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .table-actions {
+    flex-direction: column;
+  }
+  
+  .search-box input {
+    width: 100%;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .page-content {
+    padding: 2rem 1rem;
+  }
+  
+  .table-header {
+    padding: 1.5rem;
+  }
+  
+  .action-btn .btn-text {
+    display: none;
+  }
+  
+  .activity-info {
+    font-size: 0.75rem;
+  }
+}
+</style>

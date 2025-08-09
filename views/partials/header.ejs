@@ -1,67 +1,77 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
-
+<html lang="fr" dir="ltr">
 <head>
-  <meta charset="utf-8">
-  <title>Secrets</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <meta charset="utf-8" />
+  <title><%= typeof title !== 'undefined' ? title : 'EcoRide' %></title>
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Fonts + Bootstrap -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { font-family: 'Poppins', sans-serif; }
+    /* Fond plein écran pour les pages employé */
+    .bg-eco { background: #00ffbf; }
+    .main-fill { min-height: calc(100vh - 200px); }
+    .navbar-brand { font-weight: 700; }
+  </style>
 </head>
 
-<body>
-  <header>
-  <nav class="navbar navbar-expand-lg" style="background-color: rgb(80, 178, 163);">
+<body class="<%= (typeof pageClass !== 'undefined' ? pageClass : '') %>">
+<header>
+  <nav class="navbar navbar-expand-lg navbar-light" style="background-color: rgb(80,178,163);">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/covoiturage 2/public/index.html">EcoRide</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
-        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <a class="navbar-brand" href="/">EcoRide</a>
+      
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav"
+              aria-controls="topNav" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
-
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      
+      <div class="collapse navbar-collapse" id="topNav">
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-          <li class="nav-item">
-            <a class="nav-link active" aria-current="page" href="/">Accueil</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/trajets">covoiturage</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/contact">contact</a>
-          </li>
-
-          <% if (user) { %>
+          <% if (user && user.role === 'admin') { %>
+            <!-- Navigation Admin uniquement -->
             <li class="nav-item">
-              <a class="nav-link" href="/mes-trajets">Mes trajets</a>
+              <a class="nav-link" href="/admin">Dashboard</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/profile">profile</a>
-            </li>
-            <li class="nav-item">
-              <span class="nav-link">
-                <i class="fas fa-coins"></i> <%= user.credits %> crédits
-              </span>
+              <a class="nav-link" href="/admin/utilisateurs">Utilisateurs</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" href="/logout">Déconnexion</a>
             </li>
-          <% } else { %>
+          <% } else if (user && user.role === 'employe') { %>
+            <!-- Navigation Employé -->
+            <li class="nav-item"><a class="nav-link" href="/employe/avis">Avis</a></li>
+            <li class="nav-item"><a class="nav-link" href="/employe/incidents">Incidents</a></li>
+            <li class="nav-item"><a class="nav-link" href="/logout">Déconnexion</a></li>
+          <% } else if (user) { %>
+            <!-- Navigation Utilisateur normal -->
+            <li class="nav-item"><a class="nav-link" href="/">Accueil</a></li>
+            <li class="nav-item"><a class="nav-link" href="/trajets">Covoiturage</a></li>
+            <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+            <li class="nav-item"><a class="nav-link" href="/mes-trajets">Mes trajets</a></li>
+            <li class="nav-item"><a class="nav-link" href="/profile">Profil</a></li>
             <li class="nav-item">
-              <a class="nav-link" href="/login">Connexion</a>
+              <span class="nav-link">
+                <i class="fas fa-coins text-warning me-1"></i><%= user.credits %> crédits
+              </span>
             </li>
+            <li class="nav-item"><a class="nav-link" href="/logout">Déconnexion</a></li>
+          <% } else { %>
+            <!-- Navigation visiteur -->
+            <li class="nav-item"><a class="nav-link" href="/">Accueil</a></li>
+            <li class="nav-item"><a class="nav-link" href="/trajets">Covoiturage</a></li>
+            <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+            <li class="nav-item"><a class="nav-link" href="/login">Connexion</a></li>
           <% } %>
-<% if (user?.is_admin) { %>
-              <li class="nav-item">
-              <a class="nav-link" href="/admin/avis">Modération avis</a>
-            </li>
-            <% } %>
         </ul>
       </div>
     </div>
   </nav>
 </header>
 
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<!-- Bootstrap bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

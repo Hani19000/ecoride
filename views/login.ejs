@@ -28,6 +28,25 @@
     </div>
 </main>
 
+<script>
+document.querySelector('#loginForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = { username: fd.get('username'), password: fd.get('password') };
+
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) return alert(data.error || 'Erreur');
+
+  window.location = data.redirectUrl || '/profile';
+});
+</script>
+
 <style>
     .card {
         background: rgb(80, 178, 163);

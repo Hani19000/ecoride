@@ -1,0 +1,77 @@
+<%- include('partials/header', { title: 'Gestion des avis', user, pageClass: 'bg-eco' }) %>
+
+<main class="container-fluid main-fill py-5">
+  <div class="container">
+    <h1 class="fw-bold mb-4 d-flex align-items-center gap-2" style="color:rgb(80,178,163);">
+      <span style="font-size:1.6rem;">🗂️</span> Gestion des avis
+    </h1>
+
+    <% if (typeof query !== 'undefined' && query.success) { %>
+      <div class="alert alert-success"><%= query.success %></div>
+    <% } %>
+    <% if (typeof query !== 'undefined' && query.error) { %>
+      <div class="alert alert-danger"><%= query.error %></div>
+    <% } %>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Trajet</th>
+              <th>Note</th>
+              <th>Commentaire</th>
+              <th>Passager</th>
+              <th>Statut</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!avis || avis.length === 0) { %>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">Aucun avis pour le moment.</td>
+              </tr>
+            <% } else { %>
+              <% avis.forEach(a => { %>
+                <tr>
+                  <td class="text-capitalize"><%= a.lieu_depart %> ➜ <%= a.destination %></td>
+                  <td>
+                    <% for (let i=1; i<=5; i++) { %>
+                      <%= i <= (a.note||0) ? '⭐' : '☆' %>
+                    <% } %>
+                  </td>
+                  <td><%= a.commentaire || "—" %></td>
+                  <td>
+                    <strong><%= a.passager_prenom || '' %> <%= a.passager_nom || '' %></strong><br/>
+                    <small class="text-muted"><%= a.passager_email || '' %></small>
+                  </td>
+                  <td>
+                    <span class="badge <%= a.statut_validation==='en_attente' ? 'bg-warning' : (a.statut_validation==='approuve' ? 'bg-success' : 'bg-danger') %>">
+                      <%= a.statut_validation %>
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <% if (a.statut_validation === 'en_attente') { %>
+                      <form action="/employe/avis/valider" method="POST" class="d-inline">
+                        <input type="hidden" name="avis_id" value="<%= a._id %>">
+                        <input type="hidden" name="action" value="approuver">
+                        <button class="btn btn-success btn-sm">✅ Approuver</button>
+                      </form>
+                      <form action="/employe/avis/valider" method="POST" class="d-inline">
+                        <input type="hidden" name="avis_id" value="<%= a._id %>">
+                        <input type="hidden" name="action" value="refuser">
+                        <button class="btn btn-danger btn-sm">❌ Refuser</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

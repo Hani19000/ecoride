@@ -33,6 +33,22 @@ app.use(session({
   cookie: { secure: false, httpOnly: true, maxAge: 3600000 }
 }));
 
+const lastTouch = new Map(); // userId -> timestamp
+
+app.use(async (req, res, next) => {
+  try {
+    if (req.session?.user?.id) {
+      await db.query(
+        `UPDATE users SET last_seen = NOW() WHERE id = $1`,
+        [req.session.user.id]
+      );
+    }
+  } catch (e) {
+    console.error('update last_seen failed:', e);
+  }
+  next();
+});
+
 // Sync crédits + exposer user aux vues
 app.use(async (req, res, next) => {
   try {
@@ -300,22 +316,101 @@ app.post("/avis", isAuthenticated, async (req, res) => {
 
 
 
-function isAdmin(req, res, next) {
-  // Pour tester vite : mets req.session.user.is_admin = true à la connexion
-  if (req.session?.user?.is_admin) return next();
-  return res.status(403).render("error", { message: "Accès admin requis" });
+function requireEmploye(req, res, next) {
+  const role = req.session?.user?.role;
+  if (role === 'employe' || role === 'admin') return next();
+  return res.status(403).render('error', { message: "Accès employé requis" });
+}
+// middleware minimal
+// middleware d’accès
+function requireAdmin(req, res, next) {
+  console.log('🔐 role session =', req.session?.user?.role);
+  if (req.session?.user?.role === 'admin') return next();
+  return res.status(403).render('error', { message: "Accès admin requis" });
 }
 
 
 
+app.get('/admin', requireAdmin, async (req, res) => {
+  try {
+    // 1) Covoiturages terminés par jour (30 derniers jours)
+    const covoit = await db.query(`
+      SELECT t.date_du_trajet::date AS jour, COUNT(*)::int AS nb
+      FROM trajet t
+      WHERE t.statut = 'termine'
+      GROUP BY jour
+      ORDER BY jour
+      LIMIT 30
+    `);
+
+    // 2) Gains par jour (10% des crédits des réservations validées)
+    const gains = await db.query(`
+      WITH base AS (
+        SELECT t.date_du_trajet::date AS jour, SUM(r.credits_utilises)::numeric AS total_credits
+        FROM reservations r
+        JOIN trajet t ON t.id = r.trajet_id
+        WHERE r.validation_statut = 'valide'
+        GROUP BY jour
+      )
+      SELECT jour, ROUND(total_credits * 0.10, 2) AS gain_jour
+      FROM base
+      ORDER BY jour
+      LIMIT 30
+    `);
+
+    // 3) Total des gains
+    const totalGainResult = await db.query(`
+      SELECT COALESCE(ROUND(SUM(r.credits_utilises) * 0.10, 2), 0) AS total_gain
+      FROM reservations r
+      WHERE r.validation_statut = 'valide'
+    `);
+
+    // 4) Statistiques rapides (facultatif)
+    const statsResult = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users WHERE role <> 'admin') AS total_users,
+        (SELECT COUNT(*) FROM trajet) AS total_trajets,
+        (SELECT COUNT(*) FROM reservations) AS total_reservations
+    `);
+
+    // 5) Préparer les tableaux pour EJS
+    const labelsCovoit = covoit.rows.map(r => r.jour);                  // ex: '2025-08-08'
+    const dataCovoit   = covoit.rows.map(r => r.nb);                    // ex: 12
+    const labelsGains  = gains.rows.map(r => r.jour);                   // ex: '2025-08-08'
+    const dataGains    = gains.rows.map(r => Number(r.gain_jour || 0)); // ex: 3.4
+    const totalGain    = Number(totalGainResult.rows[0]?.total_gain || 0);
+    const stats        = statsResult.rows[0];
+
+    res.render('admin-dashboard', {
+      user: req.session.user,
+      labelsCovoit,
+      dataCovoit,
+      labelsGains,
+      dataGains,
+      totalGain,
+      stats
+    });
+  } catch (err) {
+    console.error('Erreur GET /admin:', err);
+    res.status(500).render('error', { message: "Impossible de charger le dashboard." });
+  }
+});
+
+
+
+app.post('/admin/users/:id/suspend', requireAdmin, async (req,res)=>{
+  await db.query(`UPDATE users SET suspended = NOT suspended WHERE id = $1`, [req.params.id]);
+  res.redirect('/admin/utilisateurs?success=maj_statut');
+});
+
 
 // Valider un avis et mettre à jour les crédits
-app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
+app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
   const { avis_id, action } = req.body;
 
   try {
     const avis = await Avis.findOne({ _id: avis_id, statut_validation: "en_attente" }).lean();
-    if (!avis) return res.redirect("/admin/avis?error=Avis introuvable");
+    if (!avis) return res.redirect("/employe/avis?error=Avis introuvable");
 
     if (action === "approuver") {
       await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "approuve" } });
@@ -338,7 +433,7 @@ app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
       // marquer la résa validée définitivement
       await db.query(`UPDATE reservations SET validation_statut = 'valide' WHERE id = $1`, [avis.reservationId]);
 
-      return res.redirect("/admin/avis?success=Avis approuvé, chauffeur crédité");
+      return res.redirect("/employe/avis?success=Avis approuvé, chauffeur crédité");
     }
 
     if (action === "refuser") {
@@ -356,13 +451,13 @@ app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
       // marquer la résa comme "signale"
       await db.query(`UPDATE reservations SET validation_statut = 'signale' WHERE id = $1`, [avis.reservationId]);
 
-      return res.redirect("/admin/avis?success=Avis refusé");
+      return res.redirect("/employe/avis?success=Avis refusé");
     }
 
-    return res.redirect("/admin/avis?error=Action inconnue");
+    return res.redirect("/employe/avis?error=Action inconnue");
   } catch (e) {
-    console.error("POST /admin/avis/valider", e);
-    return res.redirect("/admin/avis?error=Erreur traitement avis");
+    console.error("POST /employe/avis/valider", e);
+    return res.redirect("/employe/avis?error=Erreur traitement avis");
   }
 });
 
@@ -492,15 +587,192 @@ app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 
-app.get("/admin/avis", isAuthenticated, isAdmin, async (req, res) => {
+
+app.get('/admin/utilisateurs', requireAdmin, async (req, res) => {
   try {
-    const avis = await Avis.find({ statut_validation: "en_attente" }).sort({ createdAt: -1 }).lean();
-    res.render("admin-avis", { avis, user: req.session.user, query: req.query });
-  } catch (e) {
-    console.error("GET /admin/avis", e);
-    res.status(500).render("error", { message: "Impossible de charger les avis." });
+const { rows: users } = await db.query(`
+  SELECT 
+    u.id, u.email, u.nom, u.prenom, u.role, u.suspended,
+    COALESCE(c.montant, 0) as credits,
+    COUNT(DISTINCT t.id) as nb_trajets_crees,
+    COUNT(DISTINCT r.id) as nb_reservations,
+    CASE 
+      WHEN u.logged_in = true AND u.last_seen > NOW() - INTERVAL '2 minutes' THEN 'online'
+      ELSE 'offline'
+    END AS presence
+  FROM users u
+  LEFT JOIN credits c ON u.id = c.user_id
+  LEFT JOIN trajet t ON u.id = t.chauffeur_id
+  LEFT JOIN reservations r ON u.id = r.user_id
+  WHERE u.role != 'admin'
+  GROUP BY u.id, u.email, u.nom, u.prenom, u.role, u.suspended, c.montant, u.logged_in, u.last_seen
+  ORDER BY presence DESC, u.id DESC
+`);
+res.render('admin-users', { user: req.session.user, users, query: req.query });
+
+  } catch (err) {
+    console.error('Erreur admin/utilisateurs:', err);
+    res.status(500).render('error', { message: 'Erreur lors du chargement des utilisateurs' });
   }
 });
+
+
+// Route pour promouvoir un utilisateur en employé
+app.post('/admin/users/:id/promote', requireAdmin, async (req, res) => {
+  const { role } = req.body; // 'employe' ou 'user'
+  try {
+    await db.query(`UPDATE users SET role = $1 WHERE id = $2`, [role, req.params.id]);
+    res.redirect('/admin/utilisateurs?success=role_mis_a_jour');
+  } catch (err) {
+    console.error('Erreur promotion:', err);
+    res.redirect('/admin/utilisateurs?error=erreur_promotion');
+  }
+});
+
+
+
+app.get("/employe/avis", isAuthenticated, requireEmploye, async (req, res) => {
+  try {
+    // 1) Avis depuis Mongo
+    const avis = await Avis.find({}).lean(); // [{ passagerId, note, commentaire, ... }]
+
+    // 2) IDs passagers uniques (numériques)
+    const passagerIds = [...new Set(
+      avis.map(a => Number(a.passagerId)).filter(id => Number.isFinite(id))
+    )];
+
+    // 3) Fetch noms/prénoms depuis Postgres
+    let usersById = new Map();
+    if (passagerIds.length > 0) {
+      const { rows } = await db.query(
+        "SELECT id, nom, prenom FROM users WHERE id = ANY($1::int[])",
+        [passagerIds]
+      );
+      rows.forEach(u => usersById.set(Number(u.id), u));
+    }
+
+    // 4) Fusionner pour la vue
+    const avisAvecNom = avis.map(a => {
+      const u = usersById.get(Number(a.passagerId));
+      return {
+        ...a,
+        passager_nom: u?.nom || "Inconnu",
+        passager_prenom: u?.prenom || ""
+      };
+    });
+
+    // 5) Render
+    res.render("employe-avis", {
+      avis: avisAvecNom,
+      user: req.session.user,
+      query: req.query
+    });
+  } catch (err) {
+    console.error("Erreur récupération avis employé :", err);
+    res.status(500).render("error", { message: "Erreur serveur lors du chargement des avis." });
+  }
+});
+
+// Incidents à traiter par l’employé
+app.get("/employe/incidents", requireEmploye, async (req, res) => {
+  try {
+    const employe = req.session.user;
+
+    // A) Réservations “signalées” côté SQL
+    const { rows: signales } = await db.query(`
+      SELECT 
+        r.id                AS reservation_id,
+        r.trajet_id,
+        r.validation_statut,
+        r.validation_comment,
+
+        t.lieu_depart,
+        t.destination,
+        t.date_du_trajet,
+        t.heure_depart,
+        t.chauffeur_id,
+
+        uc.nom   AS chauffeur_nom,
+        uc.prenom AS chauffeur_prenom,
+        uc.email  AS chauffeur_email,
+
+        up.nom   AS passager_nom,
+        up.prenom AS passager_prenom,
+        up.email  AS passager_email
+      FROM reservations r
+      JOIN trajet t   ON t.id = r.trajet_id
+      JOIN users up   ON up.id = r.user_id        -- passager
+      JOIN users uc   ON uc.id = t.chauffeur_id   -- chauffeur
+      WHERE r.validation_statut = 'signale'
+      ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
+    `);
+
+    // B) Avis “négatifs” (<=3) qui ne sont pas déjà dans A
+    const avisNegatifs = await Avis.find(
+      { note: { $lte: 3 }, statut_validation: { $in: ["en_attente","refuse"] } },
+      { reservationId: 1, note: 1, commentaire: 1, createdAt: 1, trajetId: 1, passagerId: 1, chauffeurId: 1 }
+    ).lean();
+
+    // Index rapide par reservationId
+    const dejaDansA = new Set(signales.map(r => Number(r.reservation_id)));
+    const addFromMongo = [];
+
+    for (const a of avisNegatifs) {
+      if (!a.reservationId || dejaDansA.has(Number(a.reservationId))) continue;
+
+      // On complète depuis SQL pour récupérer noms/emails + détails trajet
+      const { rows } = await db.query(`
+        SELECT 
+          r.id AS reservation_id, r.trajet_id, r.validation_statut, r.validation_comment,
+          t.lieu_depart, t.destination, t.date_du_trajet, t.heure_depart, t.chauffeur_id,
+          uc.nom   AS chauffeur_nom, uc.prenom AS chauffeur_prenom, uc.email AS chauffeur_email,
+          up.nom   AS passager_nom,  up.prenom AS passager_prenom,  up.email  AS passager_email
+        FROM reservations r
+        JOIN trajet t ON t.id = r.trajet_id
+        JOIN users up ON up.id = r.user_id
+        JOIN users uc ON uc.id = t.chauffeur_id
+        WHERE r.id = $1
+      `, [a.reservationId]);
+
+      if (rows.length) {
+        const r = rows[0];
+        addFromMongo.push({
+          ...r,
+          avis_note: a.note,
+          avis_commentaire: a.commentaire ?? "",
+          avis_statut: a.statut_validation,
+          avis_id: a._id?.toString()
+        });
+      }
+    }
+
+    // C) Fusion + enrichissement des “signalés” avec un avis si présent
+    // (au cas où tu as aussi créé un Avis lors du signalement)
+    const signalesEnrichis = [];
+    for (const r of signales) {
+      const av = await Avis.findOne({ reservationId: Number(r.reservation_id) }).lean();
+      signalesEnrichis.push({
+        ...r,
+        avis_note: av?.note ?? null,
+        avis_commentaire: av?.commentaire ?? r.validation_comment ?? "",
+        avis_statut: av?.statut_validation ?? "en_attente",
+        avis_id: av?._id?.toString() ?? null
+      });
+    }
+
+    const incidents = [...signalesEnrichis, ...addFromMongo];
+
+    res.render("employe-incidents", {
+      user: employe,
+      incidents,
+      query: req.query
+    });
+  } catch (e) {
+    console.error("GET /employe/incidents", e);
+    res.status(500).render("error", { message: "Impossible de charger les incidents." });
+  }
+});
+
 
 
 app.get("/validations", isAuthenticated, async (req, res) => {
@@ -532,58 +804,6 @@ app.get("/validations", isAuthenticated, async (req, res) => {
     res.status(500).render("error", { message: "Impossible de charger les validations." });
   }
 });
-
-
-// Valider / Refuser un avis
-app.post("/admin/avis/valider", isAuthenticated, async (req, res) => {
-  const { avis_id, action } = req.body;
-  try {
-    const avis = await Avis.findOne({ _id: avis_id, statut_validation: "en_attente" }).lean();
-    if (!avis) return res.redirect("/admin/avis?error=Avis introuvable");
-
-    if (action === "approuver") {
-      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "approuve" } });
-
-      // libérer les payouts en "held"
-      await db.query(`
-        UPDATE payouts
-           SET statut = 'released', resolved_at = NOW()
-         WHERE chauffeur_id = $1 AND statut = 'held'
-           AND reservation_id IN (
-             SELECT r.id FROM reservations r WHERE r.trajet_id = $2
-           )
-      `, [avis.chauffeurId, avis.trajetId]);
-
-      // créditer le chauffeur pour ces payouts
-      const rel = await db.query(`
-        SELECT COALESCE(SUM(montant),0) AS total
-          FROM payouts
-         WHERE chauffeur_id = $1 AND statut = 'released'
-           AND reservation_id IN (
-             SELECT r.id FROM reservations r WHERE r.trajet_id = $2
-           )
-      `, [avis.chauffeurId, avis.trajetId]);
-
-      const total = rel.rows[0].total || 0;
-      if (total > 0) {
-        await db.query(`UPDATE credits SET montant = montant + $1 WHERE user_id = $2`, [total, avis.chauffeurId]);
-      }
-
-    } else if (action === "refuser") {
-      await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
-      // tu peux aussi annuler les payouts si tu veux :
-      // await db.query(`UPDATE payouts SET statut='canceled', resolved_at=NOW() WHERE ...`);
-    }
-
-    res.redirect("/admin/avis?success=Avis traité");
-  } catch (e) {
-    console.error("POST /admin/avis/valider", e);
-    res.redirect("/admin/avis?error=Erreur traitement");
-  }
-});
-
-
-
 
 app.get('/historique', isAuthenticated, async (req, res) => {
   try {
@@ -931,109 +1151,126 @@ app.get("/profile", async (req, res) => {
   }
 });
 
+
 app.post("/login", async (req, res) => {
   const { username: email, password } = req.body;
 
   try {
-    const result = await db.query(
-      `SELECT u.*, COALESCE(c.montant, 20) as credits
-       FROM users u
-       LEFT JOIN credits c ON u.id = c.user_id
-       WHERE email = $1`,
-      [email]
-    );
+    const result = await db.query(`
+      SELECT u.*, COALESCE(c.montant, 20) AS credits
+      FROM users u
+      LEFT JOIN credits c ON u.id = c.user_id
+      WHERE u.email = $1
+    `, [email]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.render("error", { message: "Utilisateur non trouvé" });
     }
 
     const user = result.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.render("error", { message: "Mot de passe incorrect" });
     }
 
-    // Si pas de ligne dans credits, on en crée une
-    await db.query(
-      `INSERT INTO credits (user_id, montant)
-       VALUES ($1, 20)
-       ON CONFLICT (user_id) DO NOTHING`,
-      [user.id]
-    );
+    if (user.suspended === true) {
+      return res.render("error", { message: "Compte suspendu. Contactez le support." });
+    }
 
-    // Mettre à jour les crédits en session
-    // admin
-req.session.user = {
-  id: user.id,
-  email: user.email,
-  nom: user.nom,
-  prenom: user.prenom,
-  credits: user.credits,
-  is_admin: !!user.is_admin  // <- important
-};
+    await db.query(`
+      INSERT INTO credits (user_id, montant)
+      VALUES ($1, 20)
+      ON CONFLICT (user_id) DO NOTHING
+    `, [user.id]);
 
-    return res.redirect("/profile");
+    await db.query(`UPDATE users SET logged_in = true, last_seen = NOW() WHERE id = $1`, [user.id]);
+
+    req.session.regenerate(err => {
+      if (err) return res.render("error", { message: "Erreur de session" });
+
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom,
+        credits: user.credits,
+        role: user.role || 'user'
+      };
+
+      req.session.save(err2 => {
+        if (err2) return res.render("error", { message: "Erreur de session" });
+
+        // 🔁 Redirection selon le rôle
+        if (req.session.user.role === 'admin') return res.redirect('/admin');
+        if (req.session.user.role === 'employe') return res.redirect('/employe/avis');
+        return res.redirect('/profile');
+      });
+    });
+
   } catch (err) {
     console.error("Erreur lors du login :", err);
     return res.render("error", { message: "Erreur lors de la connexion" });
   }
 });
 
-
 app.post("/api/login", async (req, res) => {
   const { username: email, password } = req.body;
-
   try {
-    // Récupérer l'utilisateur et ses crédits
     const result = await db.query(`
-      SELECT u.*, COALESCE(c.montant, 20) as credits 
-      FROM users u 
-      LEFT JOIN credits c ON u.id = c.user_id 
+      SELECT u.*, COALESCE(c.montant, 20) as credits
+      FROM users u
+      LEFT JOIN credits c ON u.id = c.user_id
       WHERE u.email = $1
     `, [email]);
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: "Email ou mot de passe incorrect" });
-    }
+    if (result.rowCount === 0) return res.status(401).json({ error: "Email ou mot de passe incorrect" });
 
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: "Email ou mot de passe incorrect" });
+    if (user.suspended === true) return res.status(403).json({ error: "Compte suspendu" });
 
-    if (!match) {
-      return res.status(401).json({ error: "Email ou mot de passe incorrect" });
-    }
+    await db.query(`
+      INSERT INTO credits (user_id, montant)
+      VALUES ($1, 20)
+      ON CONFLICT (user_id) DO NOTHING
+    `, [user.id]);
 
-    // S'assurer que l'utilisateur a des crédits
-    if (!user.credits) {
-      // Insérer les crédits initiaux si nécessaire
-      await db.query(
-        'INSERT INTO credits (user_id, montant) VALUES ($1, 20) ON CONFLICT (user_id) DO NOTHING',
-        [user.id]
-      );
-      user.credits = 20;
-    }
+    await db.query(`UPDATE users SET logged_in = true, last_seen = NOW() WHERE id = $1`, [user.id]);
 
-    // Créer la session avec les informations de l'utilisateur, y compris les crédits
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      nom: user.nom,
-      prenom: user.prenom,
-      credits: user.credits
-    };
-    // Mettre à jour les crédits dans la session
-    req.session.save((err) => {
-      if (err) {
-        console.error("Erreur lors de la sauvegarde de la session:", err);
-      }
-      res.json({ success: true });
+    req.session.regenerate(err => {
+      if (err) return res.status(500).json({ error: "Erreur session" });
+      req.session.user = {
+        id: user.id, email: user.email, nom: user.nom, prenom: user.prenom,
+        credits: user.credits, role: user.role || 'user'
+      };
+      req.session.save(err2 => {
+        if (err2) return res.status(500).json({ error: "Erreur session" });
+        const redirectUrl =
+          user.role === 'admin'   ? '/admin' :
+          user.role === 'employe' ? '/employe/avis' :
+                                    '/profile';
+        res.json({ success: true, redirectUrl });
+      });
     });
-  } catch (error) {
-    console.error("Erreur lors de la connexion:", error);
-    res.status(500).json({ error: "Erreur lors de la connexion" });
+  } catch (e) {
+    console.error("Erreur /api/login:", e);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
+
+
+app.get('/logout', (req, res) => {
+  const userId = req.session?.user?.id;
+  if (userId) {
+    db.query(`UPDATE users SET logged_in = false, last_seen = NOW() WHERE id = $1`, [userId])
+      .catch(e => console.error("Logout update error:", e));
+  }
+  req.session.destroy(() => res.redirect('/'));
+});
+
+
+
 
 // ✅ Route pour créer un nouveau trajet
 app.post('/trajet/creer', async (req, res) => {
@@ -1385,17 +1622,6 @@ app.post("/reserver-trajet", async (req, res) => {
     console.error("❌ Erreur lors de la réservation :", err);
     res.status(500).send("Une erreur est survenue lors de la réservation.");
   }
-});
-
-// Route de déconnexion
-app.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Erreur lors de la déconnexion:', err);
-      return res.status(500).send('Erreur lors de la déconnexion');
-    }
-    res.redirect('/');
-  });
 });
 
 // Gestionnaire d'erreur 404 pour les routes non trouvées
