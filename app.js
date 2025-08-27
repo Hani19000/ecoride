@@ -16,11 +16,11 @@ const app = express();
 const port = 3000;
 
 const db = new pg.Client({
-  user: "postgres",
-  host: "localhost",
-  database: "users",
-  password: "19000",
-  port: 5432,
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  password: process.env.PGPASSWORD,
+  port: process.env.PGPORT,
 });
 db.connect();
 
@@ -32,8 +32,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: false, httpOnly: true, maxAge: 3600000 }
 }));
-
-const lastTouch = new Map(); // userId -> timestamp
+app.use(express.static("public"));
+app.set("view engine", "ejs");
+app.set("views", path.join(process.cwd(), "views"));
 
 app.use(async (req, res, next) => {
   try {
@@ -321,8 +322,7 @@ function requireEmploye(req, res, next) {
   if (role === 'employe' || role === 'admin') return next();
   return res.status(403).render('error', { message: "Accès employé requis" });
 }
-// middleware minimal
-// middleware d’accès
+
 function requireAdmin(req, res, next) {
   console.log('🔐 role session =', req.session?.user?.role);
   if (req.session?.user?.role === 'admin') return next();
@@ -581,11 +581,6 @@ app.use('/reservation', reservationRouter);
 
 import contactRouter from './routes/contact.js';
 app.use('/contact', contactRouter);
-
-
-app.use(express.static("public"));
-app.set("view engine", "ejs");
-app.set("views", path.join(process.cwd(), "views"));
 
 
 app.get('/admin/utilisateurs', requireAdmin, async (req, res) => {
@@ -907,12 +902,10 @@ app.get("/confirmation", isAuthenticated, (req, res) => {
   res.render("confirmation", { user: req.session.user });
 });
 
-mongoose.connect("mongodb+srv://hani:19000@cluster0.0qgaf9b.mongodb.net/", {
-}).then(() => {
-  console.log("✅ Connecté à MongoDB");
-}).catch((err) => {
-  console.error("❌ Erreur MongoDB :", err);
-});
+mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, {})
+  .then(() => console.log("✅ Connecté à MongoDB"))
+  .catch(err => console.error("❌ Erreur MongoDB :", err));
+
 
 app.get('/', (req, res) => {
   res.render('index', { user: req.session.user });
@@ -920,13 +913,6 @@ app.get('/', (req, res) => {
 
 app.get('/contact', (req, res) => {
   res.render('contact', { user: req.session.user });
-});
-
-// Middleware pour rendre user disponible dans toutes les vues
-app.use((req, res, next) => {
-  // Ajouter user à res.locals pour le rendre disponible dans toutes les vues
-  res.locals.user = req.session.user || null;
-  next();
 });
 
 // Middleware pour synchroniser les crédits de l'utilisateur
@@ -964,38 +950,6 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-
-app.get("/profile", isAuthenticated, async (req, res) => {
-  try {
-    const userId = req.session.user.id;
-
-    const userCreditsResult = await db.query(
-      "SELECT montant FROM credits WHERE user_id = $1",
-      [userId]
-    );
-    const credits = userCreditsResult.rows[0]?.montant || 0;
-
-const reservationsResult = await db.query(`
-  SELECT r.id AS reservation_id, r.credits_utilises, r.statut,
-         t.lieu_depart, t.destination, t.date_du_trajet, t.heure_depart
-  FROM reservations r
-  JOIN trajet t ON r.trajet_id = t.id
-  WHERE r.user_id = $1
-  ORDER BY t.date_du_trajet DESC
-`, [userId]);
-
-
-    res.render("profile", {
-      user: req.session.user,
-      credits,
-      reservations: reservationsResult.rows
-    });
-  } catch (error) {
-    console.error("Erreur chargement profil :", error);
-    res.status(500).send("Erreur serveur");
-  }
-});
-
 
 app.get("/login", (req, res) => {
   res.render("login.ejs");
@@ -1110,38 +1064,54 @@ app.get('/api/me', async (req, res) => {
 
 
 app.get("/profile", async (req, res) => {
-  if (!req.session.user) {
-    return res.redirect('/login');
-  }
+  if (!req.session.user) return res.redirect('/login');
 
   try {
-    // Récupérer les infos utilisateur + crédits
+    const userId = req.session.user.id;
+
+    // 1) Utilisateur + crédits
     const userRes = await db.query(`
       SELECT u.*, COALESCE(c.montant, 0) AS credits
       FROM users u
       LEFT JOIN credits c ON c.user_id = u.id
       WHERE u.id = $1
-    `, [req.session.user.id]);
-
+    `, [userId]);
     if (userRes.rowCount === 0) {
       return res.status(404).render("error", { message: "Utilisateur introuvable" });
     }
-
     const userRow = userRes.rows[0];
 
-    // Mettre à jour la session et res.locals
+    // Sync session + locals
     req.session.user.credits = userRow.credits;
     res.locals.user = { ...req.session.user, credits: userRow.credits };
 
-    // Récupérer les véhicules
+    // 2) Véhicules
     const vehiculesRes = await db.query(
       "SELECT * FROM vehicule WHERE chauffeur_id = $1",
-      [userRow.id]
+      [userId]
     );
 
+    // 3) Réservations (pour le tableau "Derniers trajets")
+    const reservationsResult = await db.query(`
+      SELECT 
+        r.id AS reservation_id,
+        r.credits_utilises,
+        r.statut,
+        t.lieu_depart,
+        t.destination,
+        t.date_du_trajet,
+        t.heure_depart
+      FROM reservations r
+      JOIN trajet t ON r.trajet_id = t.id
+      WHERE r.user_id = $1
+      ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
+    `, [userId]);
+
+    // 4) Render
     res.render("profile", {
       user: userRow,
-      vehicules: vehiculesRes.rows
+      vehicules: vehiculesRes.rows,
+      reservations: reservationsResult.rows   // <-- IMPORTANT
     });
   } catch (error) {
     console.error("Erreur lors de la récupération du profil:", error);
@@ -1150,6 +1120,7 @@ app.get("/profile", async (req, res) => {
     });
   }
 });
+
 
 
 app.post("/login", async (req, res) => {

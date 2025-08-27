@@ -98,11 +98,11 @@
         <% if (trajets && trajets.length > 0) { %>
           <% trajets.forEach(function(trajet) { %>
             <div class="carpool-card" 
-                 data-depart="<%= trajet.lieu_depart.toLowerCase() %>"
-                 data-destination="<%= trajet.destination.toLowerCase() %>"
-                 data-date="<%= trajet.date_du_trajet %>"
-                 data-places="<%= trajet.nombre_de_places %>"
-                 data-prix="<%= trajet.prix_par_place %>">
+                data-depart="<%= trajet.lieu_depart.toLowerCase() %>"
+                data-destination="<%= trajet.destination.toLowerCase() %>"
+                data-date="<%= trajet.date_du_trajet %>"
+                data-places="<%= trajet.nombre_de_places %>"
+                data-prix="<%= trajet.prix_par_place %>">
               <div class="card-header">
                 <div class="driver-info">
                   <div class="avatar-container">
