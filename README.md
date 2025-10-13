@@ -2,9 +2,9 @@ EcoRide - Carpooling Platform
 
 EcoRide is a modern, dynamic web application designed for ecological carpooling, aiming to reduce the environmental impact of car travel. The platform connects drivers and passengers, facilitating shared rides while promoting sustainable transportation.
 
-<span style="color: red; font-size: 24px;">🚀 Features</span>
+🚀 Features
 
-<span style="color: blue; font-size: 20px;">Core Functionality</span>
+Core Functionality
 - User Registration & Authentication: Secure user registration with password hashing, login/logout functionality
 - Trip Management: Drivers can create trips with vehicle details, routes, dates, and pricing
 - Reservation System: Passengers can book available seats on trips using a credit-based system
@@ -12,12 +12,12 @@ EcoRide is a modern, dynamic web application designed for ecological carpooling,
 - Review & Rating System: Passengers can rate drivers after completed trips
 - Real-time Trip Status: Automatic status updates (planned → in progress → completed)
 
-<span style="color: blue; font-size: 20px;">User Roles & Permissions</span>
+User Roles & Permissions
 - Regular Users: Can create trips, make reservations, leave reviews, manage profile
 - Employees: Can validate/reject user reviews and manage incidents
 - Administrators: Full system access including user management, statistics, and platform oversight
 
-<span style="color: blue; font-size: 20px;">Advanced Features</span>
+Advanced Features
 - Admin Dashboard: Comprehensive analytics including daily trip counts, revenue tracking, user statistics
 - Incident Management: Employee panel for handling reported issues and negative reviews
 - Vehicle Management: Users can register multiple vehicles with detailed specifications
@@ -25,37 +25,37 @@ EcoRide is a modern, dynamic web application designed for ecological carpooling,
 - Automatic Status Updates: Background process automatically marks trips as completed
 - Session Management: Secure session handling with user activity tracking
 
-<span style="color: red; font-size: 24px;">🛠 Technology Stack</span>
+🛠 Technology Stack
 
-<span style="color: blue; font-size: 20px;">Backend</span>
+Backend
 - Node.js: JavaScript runtime environment
 - Express.js: Web application framework for Node.js
 - PostgreSQL: Primary relational database for structured data
 - MongoDB: NoSQL database for flexible review/comment storage
 
-<span style="color: blue; font-size: 20px;">Security & Authentication</span>
+Security & Authentication
 - bcrypt: Password hashing for secure authentication
 - express-session: Session management with secure cookies
 - Input Validation: Comprehensive validation for all user inputs
 
-<span style="color: blue; font-size: 20px;">Frontend</span>
+Frontend
 - EJS: Embedded JavaScript templating for dynamic HTML generation
 - Bootstrap: CSS framework for responsive design
 - Vanilla JavaScript: Client-side interactivity
 - HTML5 & CSS3: Modern markup and styling
 
-<span style="color: blue; font-size: 20px;">Database Libraries</span>
+Database Libraries
 - pg: PostgreSQL client for Node.js
 - mongoose: MongoDB object modeling for Node.js
 
-<span style="color: blue; font-size: 20px;">Development Tools</span>
+Development Tools
 - dotenv: Environment variable management
 - body-parser: Request body parsing middleware
 - path: File and directory path utilities
 
-<span style="color: red; font-size: 24px;">📊 Database Schema</span>
+📊 Database Schema
 
-<span style="color: blue; font-size: 20px;">PostgreSQL Tables</span>
+PostgreSQL Tables
 - users: User accounts with roles (user/employee/admin)
 - trajet: Trip information (routes, dates, pricing, status)
 - vehicule: Vehicle details owned by drivers
@@ -64,12 +64,12 @@ EcoRide is a modern, dynamic web application designed for ecological carpooling,
 - payouts: Payment tracking for drivers
 - preferences_vehicule: Vehicle preference settings
 
-<span style="color: blue; font-size: 20px;">MongoDB Collections</span>
+MongoDB Collections
 - avis: User reviews and ratings for trips
 
-<span style="color: red; font-size: 24px;">🔄 Application Flow</span>
+🔄 Application Flow
 
-<span style="color: blue; font-size: 20px;">User Journey</span>
+User Journey
 1. Registration: New users create accounts with personal details
 2. Vehicle Registration: Drivers add their vehicles to the platform
 3. Trip Creation: Drivers create trips specifying routes, dates, and pricing
@@ -79,47 +79,28 @@ EcoRide is a modern, dynamic web application designed for ecological carpooling,
 7. Validation: Passengers validate completed trips and can leave reviews
 8. Review Moderation: Employees review and approve user feedback
 
-<span style="color: blue; font-size: 20px;">Credit System Flow</span>
+Credit System Flow
 - Users start with 20 initial credits
 - Trip reservations deduct credits from passengers
 - Successful trip completion credits drivers (10% of trip cost)
 - Credits can be refunded for cancellations
 
-<span style="color: blue; font-size: 20px;">Review System Flow</span>
+Review System Flow
 - Reviews are stored in MongoDB for flexibility
 - Employee validation required before reviews are published
 - Negative reviews (≤3 stars) require mandatory comments
 - Approved reviews trigger driver crediting
 
-<span style="color: red; font-size: 24px;">🚀 Installation & Setup</span>
+🚀 Installation & Setup
 
-<span style="color: blue; font-size: 20px;">Prerequisites</span>
+Prerequisites
 - Node.js v22.11.0 or higher
 - PostgreSQL 15.4 or higher
 - MongoDB instance
 - Git v2.46.1 or higher
 
-<span style="color: blue; font-size: 20px;">Environment Configuration</span>
-Create a .env file in the root directory:
 
-```
-# Database Configuration
-PGUSER=your_postgres_username
-PGHOST=your_postgres_host
-PGDATABASE=your_database_name
-PGPASSWORD=your_postgres_password
-PGPORT=5432
-PGSSLMODE=require
-
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017/ecoride
-MONGO_URI=mongodb://localhost:27017/ecoride
-
-# Session Configuration
-SESSION_SECRET=your_ultra_secure_session_secret
-```
-
-<span style="color: blue; font-size: 20px;">Installation Steps</span>
+Installation Steps
 1. Clone the repository
    git clone <repository-url>
    cd ecoride-projet
@@ -140,7 +121,7 @@ SESSION_SECRET=your_ultra_secure_session_secret
 6. Access the application
    - Open browser to http://localhost:3000
 
-<span style="color: red; font-size: 24px;">📁 Project Structure</span>
+📁 Project Structure
 
 ```
 ecoride-projet/
@@ -165,34 +146,34 @@ ecoride-projet/
 └── README.md
 ```
 
-<span style="color: red; font-size: 24px;">🔧 Key API Endpoints</span>
+🔧 Key API Endpoints
 
-<span style="color: blue; font-size: 20px;">Authentication</span>
+Authentication
 - POST /register - User registration
 - POST /login - User login
 - GET /logout - User logout
 
-<span style="color: blue; font-size: 20px;">Trips</span>
+Trips
 - GET /trajets - List all available trips
 - POST /trajet/creer - Create new trip
 - GET /trajet/:id - View trip details
 - POST /reserver-trajet - Book a trip
 
-<span style="color: blue; font-size: 20px;">User Management</span>
+User Management
 - GET /profile - User profile page
 - POST /details - Add vehicle details
 
-<span style="color: blue; font-size: 20px;">Admin/Employee</span>
+Admin/Employee
 - GET /admin - Admin dashboard
 - GET /employe/avis - Employee review management
 - POST /employe/avis/valider - Validate/reject reviews
 
-<span style="color: blue; font-size: 20px;">Reviews & Validation</span>
+Reviews & Validation
 - POST /avis - Submit trip review
 - GET /validations - View pending validations
 - POST /reservation/:id/valider - Validate completed trip
 
-<span style="color: red; font-size: 24px;">🔒 Security Features</span>
+🔒 Security Features
 
 - Password hashing with bcrypt
 - Session-based authentication
@@ -202,7 +183,7 @@ ecoride-projet/
 - Role-based access control (user/employee/admin)
 - Account suspension functionality
 
-<span style="color: red; font-size: 24px;">📈 Performance Optimizations</span>
+📈 Performance Optimizations
 
 - Database connection pooling
 - Efficient SQL queries with proper indexing
@@ -210,7 +191,7 @@ ecoride-projet/
 - Session optimization with proper cleanup
 - Static file caching
 
-<span style="color: red; font-size: 24px;">🚀 Deployment</span>
+🚀 Deployment
 
 The application is configured for deployment on Fly.io with:
 - Environment variable configuration
@@ -218,7 +199,7 @@ The application is configured for deployment on Fly.io with:
 - Static file serving optimization
 - Error handling and logging
 
-<span style="color: red; font-size: 24px;">🤝 Contributing</span>
+🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -226,15 +207,15 @@ The application is configured for deployment on Fly.io with:
 4. Test thoroughly
 5. Submit a pull request
 
-<span style="color: red; font-size: 24px;">📝 License</span>
+📝 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-<span style="color: red; font-size: 24px;">👥 Authors</span>
+👥 Authors
 
 - Developed as part of a web development project
 
-<span style="color: red; font-size: 24px;">🙏 Acknowledgments</span>
+🙏 Acknowledgments
 
 - Built with modern web technologies
 - Focus on ecological transportation solutions
