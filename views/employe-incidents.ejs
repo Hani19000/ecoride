@@ -15,72 +15,74 @@
 
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th># Covoit</th>
-              <th>Départ → Arrivée</th>
-              <th>Date / Heure</th>
-              <th>Passager</th>
-              <th>Chauffeur</th>
-              <th>Note</th>
-              <th>Commentaire</th>
-              <th>Statut avis</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!incidents || incidents.length === 0) { %>
-              <tr><td colspan="8" class="text-center text-muted py-4">Aucun incident.</td></tr>
-            <% } else { %>
-              <% incidents.forEach(i => { %>
-                <tr>
-                  <td><span class="text-muted">#</span><%= i.reservation_id %></td>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th># Covoit</th>
+                <th>Départ → Arrivée</th>
+                <th>Date / Heure</th>
+                <th>Passager</th>
+                <th>Chauffeur</th>
+                <th>Note</th>
+                <th>Commentaire</th>
+                <th>Statut avis</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (!incidents || incidents.length === 0) { %>
+                <tr><td colspan="8" class="text-center text-muted py-4">Aucun incident.</td></tr>
+              <% } else { %>
+                <% incidents.forEach(i => { %>
+                  <tr>
+                    <td><span class="text-muted">#</span><%= i.reservation_id %></td>
 
-                  <td class="text-capitalize">
-                    <strong><%= i.lieu_depart %></strong>
-                    <span class="text-muted">→</span>
-                    <strong><%= i.destination %></strong>
-                  </td>
+                    <td class="text-capitalize">
+                      <strong><%= i.lieu_depart %></strong>
+                      <span class="text-muted">→</span>
+                      <strong><%= i.destination %></strong>
+                    </td>
 
-                  <td>
-                    <%= new Date(i.date_du_trajet).toLocaleDateString('fr-FR') %>
-                    <div class="small text-muted"><%= (i.heure_depart || '').toString().slice(0,5) %></div>
-                  </td>
+                    <td>
+                      <%= new Date(i.date_du_trajet).toLocaleDateString('fr-FR') %>
+                      <div class="small text-muted"><%= (i.heure_depart || '').toString().slice(0,5) %></div>
+                    </td>
 
-                  <td>
-                    <div><strong><%= i.passager_prenom %> <%= i.passager_nom %></strong></div>
-                    <a href="mailto:<%= i.passager_email %>"><%= i.passager_email %></a>
-                  </td>
+                    <td>
+                      <div><strong><%= i.passager_prenom %> <%= i.passager_nom %></strong></div>
+                      <a href="mailto:<%= i.passager_email %>"><%= i.passager_email %></a>
+                    </td>
 
-                  <td>
-                    <div><strong><%= i.chauffeur_prenom %> <%= i.chauffeur_nom %></strong></div>
-                    <a href="mailto:<%= i.chauffeur_email %>"><%= i.chauffeur_email %></a>
-                  </td>
+                    <td>
+                      <div><strong><%= i.chauffeur_prenom %> <%= i.chauffeur_nom %></strong></div>
+                      <a href="mailto:<%= i.chauffeur_email %>"><%= i.chauffeur_email %></a>
+                    </td>
 
-                  <td>
-                    <% if (i.avis_note) { %>
-                      <% for (let s=1; s<=5; s++) { %>
-                        <%= s <= i.avis_note ? '⭐' : '☆' %>
+                    <td>
+                      <% if (i.avis_note) { %>
+                        <% for (let s=1; s<=5; s++) { %>
+                          <%= s <= i.avis_note ? '⭐' : '☆' %>
+                        <% } %>
+                      <% } else { %>
+                        —
                       <% } %>
-                    <% } else { %>
-                      —
-                    <% } %>
-                  </td>
+                    </td>
 
-                  <td class="small" style="max-width:260px;">
-                    <%= i.avis_commentaire || "—" %>
-                  </td>
+                    <td class="small" style="max-width:260px;">
+                      <%= i.avis_commentaire || "—" %>
+                    </td>
 
-                  <td>
-                    <span class="badge <%= i.avis_statut==='en_attente' ? 'bg-warning' : (i.avis_statut==='approuve' ? 'bg-success' : 'bg-danger') %>">
-                      <%= i.avis_statut %>
-                    </span>
-                  </td>
-                </tr>
-              <% }) %>
-            <% } %>
-          </tbody>
-        </table>
+                    <td>
+                      <span class="badge <%= i.avis_statut==='en_attente' ? 'bg-warning' : (i.avis_statut==='approuve' ? 'bg-success' : 'bg-danger') %>">
+                        <%= i.avis_statut %>
+                      </span>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
