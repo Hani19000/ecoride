@@ -5,7 +5,7 @@
 <main class="d-flex justify-content-center align-items-center vh-100">
     <div class="card p-4 shadow-lg" style="max-width: 450px; width: 100%;">
         <h2 class="text-center mb-4">Connexion</h2>
-        <form action="/login" method="POST">
+        <form action="/api/login" method="POST">
             <div class="mb-3">
                 <label for="inputEmail" class="form-label">Adresse Mail</label>
                 <input type="email" class="form-control" id="inputEmail" name="username" required>
@@ -17,7 +17,7 @@
             </div>
 
             <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="rememberMe">
+                <input class="form-check-input" type="checkbox" id="rememberMe" name="remember_me">
                 <label class="form-check-label" for="rememberMe">
                     Se souvenir de moi
                 </label>
@@ -29,10 +29,14 @@
 </main>
 
 <script>
-document.querySelector('#loginForm')?.addEventListener('submit', async (e) => {
+document.querySelector('form[action="/api/login"]')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const payload = { username: fd.get('username'), password: fd.get('password') };
+  const payload = {
+    username: fd.get('username'),
+    password: fd.get('password'),
+    remember_me: fd.get('remember_me') === 'on'
+  };
 
   const res = await fetch('/api/login', {
     method: 'POST',
@@ -41,7 +45,10 @@ document.querySelector('#loginForm')?.addEventListener('submit', async (e) => {
   });
 
   const data = await res.json();
-  if (!res.ok) return alert(data.error || 'Erreur');
+  if (!res.ok) {
+    window.location = '/error?message=' + encodeURIComponent(data.error || 'Erreur');
+    return;
+  }
 
   window.location = data.redirectUrl || '/profile';
 });

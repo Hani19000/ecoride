@@ -83,7 +83,7 @@ app.use(async (req, res, next) => {
 app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
   const { trajet_id } = req.body;
   const chauffeurId = req.session.user.id;
-  if (!trajet_id) return res.status(400).send('trajet_id requis');
+  if (!trajet_id) return res.status(400).send("trajet_id requis");
 
   try {
     await db.query('BEGIN');
@@ -98,7 +98,7 @@ app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
     }
     if (trajet.rows[0].chauffeur_id !== chauffeurId) {
       await db.query('ROLLBACK');
-      return res.status(403).send('Non autorisé à annuler ce trajet.');
+      return res.render("error", { message: "Non autorisé à annuler ce trajet." });
     }
 
     const reservations = await db.query(
@@ -124,7 +124,7 @@ app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('POST /annuler-trajet', err);
     try { await db.query('ROLLBACK'); } catch {}
-    return res.status(500).render('error', { message: "Erreur lors de l'annulation du trajet." });
+    return res.status(500).send("Erreur lors de l'annulation du trajet.");
   }
 });
 
@@ -166,11 +166,11 @@ app.post("/terminer-trajet", isAuthenticated, async (req, res) => {
     const t = tRes.rows[0];
     if (t.chauffeur_id !== userId) {
       await db.query('ROLLBACK');
-      return res.redirect("/mes-trajets?error=Tu n'es pas le chauffeur de ce trajet");
+      return res.render("error", { message: "Tu n'es pas le chauffeur de ce trajet" });
     }
     if (t.statut !== 'en_cours') {
       await db.query('ROLLBACK');
-      return res.redirect("/mes-trajets?error=Le trajet n'est pas en cours");
+      return res.render("error", { message: "Le trajet n'est pas en cours" });
     }
 
     // Trajet -> terminé
@@ -190,7 +190,7 @@ app.post("/terminer-trajet", isAuthenticated, async (req, res) => {
   } catch (err) {
     try { await db.query('ROLLBACK'); } catch {}
     console.error("terminer-trajet ERROR:", err);
-    return res.redirect("/mes-trajets?error=Impossible de terminer (voir logs serveur)");
+    return res.status(500).send("Impossible de terminer (voir logs serveur)");
   }
 });
 
@@ -201,7 +201,7 @@ app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
   const { trajet_id } = req.body;
 
   // Protection basique
-  if (!trajet_id) return res.status(400).send('trajet_id requis');
+  if (!trajet_id) return res.status(400).send("trajet_id requis");
 
   try {
     await db.query('BEGIN');
@@ -217,7 +217,7 @@ app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
 
     if (resa.rows.length === 0) {
       await db.query('ROLLBACK');
-      return res.status(404).send('Réservation introuvable');
+      return res.status(404).send("Réservation introuvable");
     }
 
     const { id: reservationId, credits_utilises } = resa.rows[0];
@@ -321,13 +321,13 @@ app.post("/avis", isAuthenticated, async (req, res) => {
 function requireEmploye(req, res, next) {
   const role = req.session?.user?.role;
   if (role === 'employe' || role === 'admin') return next();
-  return res.status(403).render('error', { message: "Accès employé requis" });
+  return res.render('error', { message: "Accès employé requis" });
 }
 
 function requireAdmin(req, res, next) {
   console.log('🔐 role session =', req.session?.user?.role);
   if (req.session?.user?.role === 'admin') return next();
-  return res.status(403).render('error', { message: "Accès admin requis" });
+  return res.render('error', { message: "Accès admin requis" });
 }
 
 
@@ -393,7 +393,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('Erreur GET /admin:', err);
-    res.status(500).render('error', { message: "Impossible de charger le dashboard." });
+    res.status(500).send("Impossible de charger le dashboard.");
   }
 });
 
@@ -415,11 +415,11 @@ app.post('/admin/users/:id/delete', requireAdmin, async (req, res) => {
     const userCheck = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
     if (userCheck.rows.length === 0) {
       await db.query('ROLLBACK');
-      return res.redirect('/admin/utilisateurs?error=utilisateur_introuvable');
+      return res.status(404).send('Utilisateur introuvable');
     }
     if (userCheck.rows[0].role === 'admin') {
       await db.query('ROLLBACK');
-      return res.redirect('/admin/utilisateurs?error=impossible_supprimer_admin');
+      return res.render('error', { message: 'Impossible de supprimer un admin' });
     }
 
     // Supprimer les données liées dans l'ordre pour respecter les contraintes de clés étrangères
@@ -459,7 +459,7 @@ app.post('/admin/users/:id/delete', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', err);
     try { await db.query('ROLLBACK'); } catch {}
-    res.redirect('/admin/utilisateurs?error=erreur_suppression');
+    res.status(500).send('Erreur lors de la suppression');
   }
 });
 
@@ -666,7 +666,7 @@ res.render('admin-users', { user: req.session.user, users, query: req.query });
 
   } catch (err) {
     console.error('Erreur admin/utilisateurs:', err);
-    res.status(500).render('error', { message: 'Erreur lors du chargement des utilisateurs' });
+    res.status(500).send('Erreur lors du chargement des utilisateurs');
   }
 });
 
@@ -679,7 +679,7 @@ app.post('/admin/users/:id/promote', requireAdmin, async (req, res) => {
     res.redirect('/admin/utilisateurs?success=role_mis_a_jour');
   } catch (err) {
     console.error('Erreur promotion:', err);
-    res.redirect('/admin/utilisateurs?error=erreur_promotion');
+    res.status(500).send('Erreur lors de la promotion');
   }
 });
 
@@ -723,7 +723,7 @@ app.get("/employe/avis", isAuthenticated, requireEmploye, async (req, res) => {
     });
   } catch (err) {
     console.error("Erreur récupération avis employé :", err);
-    res.status(500).render("error", { message: "Erreur serveur lors du chargement des avis." });
+    res.status(500).send("Erreur serveur lors du chargement des avis.");
   }
 });
 
@@ -823,7 +823,7 @@ app.get("/employe/incidents", requireEmploye, async (req, res) => {
     });
   } catch (e) {
     console.error("GET /employe/incidents", e);
-    res.status(500).render("error", { message: "Impossible de charger les incidents." });
+    res.status(500).send("Impossible de charger les incidents.");
   }
 });
 
@@ -855,7 +855,7 @@ app.get("/validations", isAuthenticated, async (req, res) => {
     res.render("validations", { items: rows, user: req.session.user });
   } catch (e) {
     console.error("GET /validations:", e);
-    res.status(500).render("error", { message: "Impossible de charger les validations." });
+    res.status(500).send("Impossible de charger les validations.");
   }
 });
 
@@ -902,7 +902,7 @@ app.get('/historique', isAuthenticated, async (req, res) => {
     res.render('historique', { reservations, user, query: req.query });
   } catch (err) {
     console.error("❌ Erreur chargement historique :", err);
-    res.status(500).render('error', { message: 'Erreur chargement historique' });
+    res.status(500).send('Erreur chargement historique');
   }
 });
 
@@ -939,7 +939,7 @@ const { rows: trajets } = await db.query(`
     });
   } catch (e) {
     console.error('GET /mes-trajets FAILED:', e);
-    return res.status(500).render('error', { message: "Impossible de charger vos trajets." });
+    return res.status(500).send("Impossible de charger vos trajets.");
   }
 });
 
@@ -1014,18 +1014,28 @@ app.get("/login", (req, res) => {
   res.render("login.ejs");
 });
 
+app.get("/error", (req, res) => {
+  const message = req.query.message || "Une erreur inattendue s'est produite.";
+  res.render("error", { message });
+});
+
 app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
 app.post("/register", async (req, res) => {
-  const { username: email, password, nom, prenom, address, departement, ville } = req.body;
+  const { username: email, password, nom, prenom, address, departement, ville, rgpd_accepted } = req.body;
+
+  // Vérifier que l'utilisateur a accepté le RGPD
+  if (!rgpd_accepted || rgpd_accepted === 'false') {
+    return res.render("error", { message: "Vous devez accepter le Règlement général sur la protection des données (RGPD) pour vous inscrire." });
+  }
 
   try {
     const checkResult = await db.query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (checkResult.rows.length > 0) {
-      return res.send("Email already exists. Try logging in.");
+      return res.render("error", { message: "Email déjà utilisé. Essayez de vous connecter." });
     }
 
     // 🔒 Hachage du mot de passe
@@ -1048,7 +1058,12 @@ app.post("/register", async (req, res) => {
 });
 
 app.post("/api/register", async (req, res) => {
-  const { username: email, password, nom, prenom, address, departement, ville } = req.body;
+  const { username: email, password, nom, prenom, address, departement, ville, rgpd_accepted } = req.body;
+
+  // Vérifier que l'utilisateur a accepté le RGPD
+  if (!rgpd_accepted) {
+    return res.status(400).json({ error: "Vous devez accepter le Règlement général sur la protection des données (RGPD) pour vous inscrire." });
+  }
 
   try {
     await db.query('BEGIN');
@@ -1056,7 +1071,7 @@ app.post("/api/register", async (req, res) => {
     const exists = await db.query("SELECT 1 FROM users WHERE email = $1", [email]);
     if (exists.rowCount) {
       await db.query('ROLLBACK');
-      return res.status(400).send("Email déjà utilisé.");
+      return res.status(400).json({ error: "Email déjà utilisé." });
     }
 
     const hashed = await bcrypt.hash(password, saltRounds);
@@ -1098,16 +1113,16 @@ app.post("/api/register", async (req, res) => {
       req.session.save((err) => {
         if (err) {
           console.error("Erreur save session:", err);
-          return res.status(500).send("Erreur session");
+          return res.json({ error: "Erreur session" });
         }
-        return res.redirect("/profile");
+        return res.json({ success: true, redirectUrl: "/profile" });
       });
     });
 
   } catch (err) {
     console.error('Erreur inscription:', err);
     try { await db.query('ROLLBACK'); } catch {}
-    return res.status(500).send('Erreur lors de l’inscription');
+    return res.status(500).json({ error: 'Erreur lors de l’inscription' });
   }
 });
 
@@ -1136,7 +1151,7 @@ app.get("/profile", async (req, res) => {
       WHERE u.id = $1
     `, [userId]);
     if (userRes.rowCount === 0) {
-      return res.status(404).render("error", { message: "Utilisateur introuvable" });
+      return res.render("error", { message: "Utilisateur introuvable" });
     }
     const userRow = userRes.rows[0];
 
@@ -1174,16 +1189,14 @@ app.get("/profile", async (req, res) => {
     });
   } catch (error) {
     console.error("Erreur lors de la récupération du profil:", error);
-    res.status(500).render("error", {
-      message: "Une erreur est survenue lors de la récupération de votre profil"
-    });
+    res.status(500).send("Une erreur est survenue lors de la récupération de votre profil");
   }
 });
 
 
 
 app.post("/login", async (req, res) => {
-  const { username: email, password } = req.body;
+  const { username: email, password, remember_me } = req.body;
 
   try {
     const result = await db.query(`
@@ -1215,8 +1228,13 @@ app.post("/login", async (req, res) => {
 
     await db.query(`UPDATE users SET logged_in = true, last_seen = NOW() WHERE id = $1`, [user.id]);
 
+    // Définir la durée de la session selon "Se souvenir de moi"
+    const maxAge = remember_me ? 3600000 : 30 * 60 * 1000; // 1 heure ou 30 minutes
+
     req.session.regenerate(err => {
       if (err) return res.render("error", { message: "Erreur de session" });
+
+      req.session.cookie.maxAge = maxAge;
 
       req.session.user = {
         id: user.id,
@@ -1239,12 +1257,12 @@ app.post("/login", async (req, res) => {
 
   } catch (err) {
     console.error("Erreur lors du login :", err);
-    return res.render("error", { message: "Erreur lors de la connexion" });
+    return res.status(500).send("Erreur lors de la connexion");
   }
 });
 
 app.post("/api/login", async (req, res) => {
-  const { username: email, password } = req.body;
+  const { username: email, password, remember_me } = req.body;
   try {
     const result = await db.query(`
       SELECT u.*, COALESCE(c.montant, 20) as credits
@@ -1253,12 +1271,12 @@ app.post("/api/login", async (req, res) => {
       WHERE u.email = $1
     `, [email]);
 
-    if (result.rowCount === 0) return res.status(401).json({ error: "Email ou mot de passe incorrect" });
+    if (result.rowCount === 0) return res.status(400).json({ error: "Email ou mot de passe incorrect" });
 
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Email ou mot de passe incorrect" });
-    if (user.suspended === true) return res.status(403).json({ error: "Compte suspendu" });
+    if (!match) return res.status(400).json({ error: "Email ou mot de passe incorrect" });
+    if (user.suspended === true) return res.status(400).json({ error: "Compte suspendu" });
 
     await db.query(`
       INSERT INTO credits (user_id, montant)
@@ -1268,8 +1286,12 @@ app.post("/api/login", async (req, res) => {
 
     await db.query(`UPDATE users SET logged_in = true, last_seen = NOW() WHERE id = $1`, [user.id]);
 
+    // Définir la durée de la session selon "Se souvenir de moi"
+    const maxAge = remember_me ? 3600000 : 30 * 60 * 1000; // 1 heure ou 30 minutes
+
     req.session.regenerate(err => {
       if (err) return res.status(500).json({ error: "Erreur session" });
+      req.session.cookie.maxAge = maxAge;
       req.session.user = {
         id: user.id, email: user.email, nom: user.nom, prenom: user.prenom,
         credits: user.credits, role: user.role || 'user'
@@ -1401,9 +1423,7 @@ app.get("/trajets", async (req, res) => {
     });
   } catch (error) {
     console.error("Erreur serveur:", error);
-    res.status(500).render("error", { 
-      message: "Une erreur est survenue lors de la récupération des trajets" 
-    });
+    res.status(500).send("Une erreur est survenue lors de la récupération des trajets");
   }
 });
 
@@ -1490,8 +1510,8 @@ app.get('/trajet/creer', async (req, res) => {
     );
 
     if (vehiculeResult.rows.length === 0) {
-      return res.status(404).render('error', { 
-        message: 'Véhicule non trouvé ou vous n\'êtes pas autorisé à créer un trajet avec ce véhicule' 
+      return res.render('error', {
+        message: 'Véhicule non trouvé ou vous n\'êtes pas autorisé à créer un trajet avec ce véhicule'
       });
     }
 
@@ -1503,9 +1523,7 @@ app.get('/trajet/creer', async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur lors de la récupération des informations du véhicule:', error);
-    res.status(500).render('error', { 
-      message: 'Une erreur est survenue lors de la récupération des informations du véhicule' 
-    });
+    res.status(500).send('Une erreur est survenue lors de la récupération des informations du véhicule');
   }
 });
 
@@ -1540,7 +1558,7 @@ app.get("/trajet/:id", async (req, res, next) => {
     );
 
     if (trajetResult.rows.length === 0) {
-      return res.render("error", { 
+      return res.render("error", {
         message: "Le trajet demandé n'existe pas ou a été supprimé."
       });
     }
@@ -1580,9 +1598,7 @@ res.render("details", {
 
   } catch (err) {
     console.error("Erreur lors de la récupération des détails du trajet:", err);
-    res.render("error", { 
-      message: "Une erreur est survenue lors de la récupération des détails du trajet. Veuillez réessayer plus tard."
-    });
+    res.status(500).send("Une erreur est survenue lors de la récupération des détails du trajet. Veuillez réessayer plus tard.");
   }
 });
 
@@ -1652,17 +1668,13 @@ app.post("/reserver-trajet", async (req, res) => {
 
 // Gestionnaire d'erreur 404 pour les routes non trouvées
 app.use((req, res, next) => {
-  res.status(404).render("error", { 
-    message: "La page que vous recherchez n'existe pas." 
-  });
+  res.render("error", { message: "La page que vous recherchez n'existe pas." });
 });
 
 // Gestionnaire d'erreur global
 app.use((err, req, res, next) => {
   console.error("Erreur serveur:", err);
-  res.status(500).render("error", { 
-    message: "Une erreur inattendue s'est produite. Veuillez réessayer plus tard." 
-  });
+  res.render("error", { message: "Une erreur inattendue s'est produite. Veuillez réessayer plus tard." });
 });
 
 async function majStatutsAutomatique() {
