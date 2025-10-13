@@ -21,6 +21,7 @@ const db = new pg.Client({
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
+  ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : false
 });
 db.connect();
 
@@ -403,6 +404,65 @@ app.post('/admin/users/:id/suspend', requireAdmin, async (req,res)=>{
   res.redirect('/admin/utilisateurs?success=maj_statut');
 });
 
+// Route pour supprimer un utilisateur
+app.post('/admin/users/:id/delete', requireAdmin, async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    await db.query('BEGIN');
+
+    // Vérifier que l'utilisateur n'est pas admin
+    const userCheck = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      await db.query('ROLLBACK');
+      return res.redirect('/admin/utilisateurs?error=utilisateur_introuvable');
+    }
+    if (userCheck.rows[0].role === 'admin') {
+      await db.query('ROLLBACK');
+      return res.redirect('/admin/utilisateurs?error=impossible_supprimer_admin');
+    }
+
+    // Supprimer les données liées dans l'ordre pour respecter les contraintes de clés étrangères
+
+    // 1. Supprimer les avis MongoDB liés à cet utilisateur
+    await Avis.deleteMany({
+      $or: [
+        { passagerId: Number(userId) },
+        { chauffeurId: Number(userId) }
+      ]
+    });
+
+    // 2. Supprimer les payouts liés
+    await db.query('DELETE FROM payouts WHERE chauffeur_id = $1 OR reservation_id IN (SELECT id FROM reservations WHERE user_id = $1)', [userId]);
+
+    // 3. Supprimer les réservations
+    await db.query('DELETE FROM reservations WHERE user_id = $1', [userId]);
+
+    // 4. Supprimer les trajets créés par cet utilisateur
+    await db.query('DELETE FROM trajet WHERE chauffeur_id = $1', [userId]);
+
+    // 5. Supprimer les véhicules
+    await db.query('DELETE FROM vehicule WHERE chauffeur_id = $1', [userId]);
+
+    // 6. Supprimer les crédits
+    await db.query('DELETE FROM credits WHERE user_id = $1', [userId]);
+
+    // 7. Supprimer les préférences de véhicule
+    await db.query('DELETE FROM preferences_vehicule WHERE vehicule_id IN (SELECT id FROM vehicule WHERE chauffeur_id = $1)', [userId]);
+
+    // 8. Enfin, supprimer l'utilisateur
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    await db.query('COMMIT');
+
+    res.redirect('/admin/utilisateurs?success=utilisateur_supprime');
+  } catch (err) {
+    console.error('Erreur lors de la suppression de l\'utilisateur:', err);
+    try { await db.query('ROLLBACK'); } catch {}
+    res.redirect('/admin/utilisateurs?error=erreur_suppression');
+  }
+});
+
 
 // Valider un avis et mettre à jour les crédits
 app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
@@ -418,8 +478,8 @@ app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
       // libérer le payout et créditer le chauffeur
       const rel = await db.query(`
         UPDATE payouts
-           SET statut = 'released', resolved_at = NOW()
-         WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut = 'held'
+          SET statut = 'released', resolved_at = NOW()
+          WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut = 'held'
         RETURNING montant
       `, [avis.reservationId, avis.chauffeurId]);
 
@@ -442,11 +502,10 @@ app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
       // annuler le payout (option simple)
       await db.query(`
         UPDATE payouts
-           SET statut = 'canceled', resolved_at = NOW()
-         WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut IN ('held','pending')
+          SET statut = 'canceled', resolved_at = NOW()
+          WHERE reservation_id = $1 AND chauffeur_id = $2 AND statut IN ('held','pending')
       `, [avis.reservationId, avis.chauffeurId]);
 
-      // tu peux aussi re-créditer le passager si tu veux, selon ta règle métier
 
       // marquer la résa comme "signale"
       await db.query(`UPDATE reservations SET validation_statut = 'signale' WHERE id = $1`, [avis.reservationId]);
@@ -702,7 +761,7 @@ app.get("/employe/incidents", requireEmploye, async (req, res) => {
       ORDER BY t.date_du_trajet DESC, t.heure_depart DESC
     `);
 
-    // B) Avis “négatifs” (<=3) qui ne sont pas déjà dans A
+    // B) Avis “négatifs” 
     const avisNegatifs = await Avis.find(
       { note: { $lte: 3 }, statut_validation: { $in: ["en_attente","refuse"] } },
       { reservationId: 1, note: 1, commentaire: 1, createdAt: 1, trajetId: 1, passagerId: 1, chauffeurId: 1 }
@@ -741,8 +800,8 @@ app.get("/employe/incidents", requireEmploye, async (req, res) => {
       }
     }
 
-    // C) Fusion + enrichissement des “signalés” avec un avis si présent
-    // (au cas où tu as aussi créé un Avis lors du signalement)
+    // C) Fusion des “signalés” avec un avis si présent
+    // (au cas où création s'un Avis lors du signalement)
     const signalesEnrichis = [];
     for (const r of signales) {
       const av = await Avis.findOne({ reservationId: Number(r.reservation_id) }).lean();
@@ -775,16 +834,16 @@ app.get("/validations", isAuthenticated, async (req, res) => {
     const userId = req.session.user.id;
     const { rows } = await db.query(`
       SELECT r.id AS reservation_id,
-             r.trajet_id,
-             r.credits_utilises,
-             r.validation_statut,
-             r.validation_comment,
-             t.lieu_depart,
-             t.destination,
-             t.date_du_trajet,
-             t.heure_depart,
-             t.statut AS trajet_statut,
-             t.chauffeur_id
+            r.trajet_id,
+            r.credits_utilises,
+            r.validation_statut,
+            r.validation_comment,
+            t.lieu_depart,
+            t.destination,
+            t.date_du_trajet,
+            t.heure_depart,
+            t.statut AS trajet_statut,
+            t.chauffeur_id
       FROM reservations r
       JOIN trajet t ON t.id = r.trajet_id
       WHERE r.user_id = $1
@@ -833,7 +892,7 @@ app.get('/historique', isAuthenticated, async (req, res) => {
       avisByResa = new Set(avis.map(a => Number(a.reservationId)));
     }
 
-    // 3) Enrichir pour la vue
+    
     const reservations = rows.map(r => ({
       ...r,
       statut: r.reservation_statut,
@@ -1451,10 +1510,6 @@ app.get('/trajet/creer', async (req, res) => {
 });
 
 
-// Débogage de la requête pour vérifier pourquoi le trajet n'est pas trouvé
-
-// Vérification de la réponse HTTP pour comprendre pourquoi "Trajet non trouvé" s'affiche
-
 app.get("/trajet/:id", async (req, res, next) => {
   // Vérifier que l'ID est composé uniquement de chiffres
   if (!/^\d+$/.test(req.params.id)) {
@@ -1477,10 +1532,10 @@ app.get("/trajet/:id", async (req, res, next) => {
                 FROM preferences_vehicule 
                 WHERE vehicule_id = v.id
               ) as preferences
-       FROM trajet t 
-       LEFT JOIN users u ON t.chauffeur_id = u.id
-       LEFT JOIN vehicule v ON t.vehicule_id = v.id
-       WHERE t.id = $1`,
+        FROM trajet t 
+        LEFT JOIN users u ON t.chauffeur_id = u.id
+        LEFT JOIN vehicule v ON t.vehicule_id = v.id
+        WHERE t.id = $1`,
       [trajetId]
     );
 
@@ -1498,7 +1553,7 @@ app.get("/trajet/:id", async (req, res, next) => {
     if (req.session?.user?.id) {
       const reservationResult = await db.query(
         `SELECT * FROM reservations 
-         WHERE trajet_id = $1 AND user_id = $2`,
+        WHERE trajet_id = $1 AND user_id = $2`,
         [trajetId, req.session.user.id]
       );
       dejaReserve = reservationResult.rows.length > 0;
@@ -1507,8 +1562,8 @@ app.get("/trajet/:id", async (req, res, next) => {
     // Compter le nombre de places déjà réservées
     const reservationsResult = await db.query(
       `SELECT COUNT(*) as nombre_reservations 
-       FROM reservations
-       WHERE trajet_id = $1`,
+      FROM reservations
+      WHERE trajet_id = $1`,
       [trajetId]
     );
 

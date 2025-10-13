@@ -29,6 +29,13 @@
   </div>
 
   <div class="page-content">
+    <% if (typeof query !== 'undefined' && query.success) { %>
+      <div class="alert alert-success"><%= query.success %></div>
+    <% } %>
+    <% if (typeof query !== 'undefined' && query.error) { %>
+      <div class="alert alert-danger"><%= query.error %></div>
+    <% } %>
+
     <% if (!users || users.length === 0) { %>
       <div class="empty-state">
         <div class="empty-icon">👤</div>
@@ -128,6 +135,21 @@
                     
                   </td>
                   <td class="text-end">
+                    <% if (u.role !== 'admin' && u.role !== 'employe') { %>
+                      <form action="/admin/users/<%= u.id %>/promote" method="post" class="d-inline">
+                        <input type="hidden" name="role" value="employe">
+                        <button class="btn btn-sm btn-info" onclick="return confirm('Promouvoir cet utilisateur en employé ?')">
+                          <i class="bi bi-arrow-up-circle me-1"></i>Promouvoir
+                        </button>
+                      </form>
+                    <% } %>
+                    <% if (u.role !== 'admin') { %>
+                      <form action="/admin/users/<%= u.id %>/delete" method="post" class="d-inline">
+                        <button class="btn btn-sm btn-danger" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.')">
+                          <i class="bi bi-trash me-1"></i>Supprimer
+                        </button>
+                      </form>
+                    <% } %>
                     <form action="/admin/users/<%= u.id %>/suspend" method="post" class="d-inline">
                       <button class="btn btn-sm <%= u.suspended ? 'btn-success' : 'btn-warning' %>">
                         <%= u.suspended ? 'Réactiver' : 'Suspendre' %>
