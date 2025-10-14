@@ -1,21 +1,3 @@
-<<<<<<< HEAD
-FROM node:18
-
-WORKDIR /app
-
-# Copier les fichiers de config uniquement
-COPY package*.json ./
-
-# Installer les dépendances dans le conteneur
-RUN npm install
-
-# Copier le reste du code
-COPY . .
-
-EXPOSE 3000
-CMD ["node", "app.js"]
-
-=======
 # syntax = docker/dockerfile:1
 
 # Adjust NODE_VERSION as desired
@@ -55,4 +37,3 @@ COPY --from=build /app /app
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
 CMD [ "npm", "run", "start" ]
->>>>>>> d0bf3a2 (mise a jours)

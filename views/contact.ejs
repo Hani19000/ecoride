@@ -14,7 +14,7 @@
     <!--Start header : le menu de le page-->
 <%- include('partials/header', { user }) %>
 
-        
+
     <!--End header-->
 
     <!--START BODY-->
@@ -28,41 +28,41 @@
                     <label for="inputEmail" class="form-label">Adresse Mail</label>
                     <input type="email" class="form-control" id="inputEmail" name="email" required>
                 </div>
-    
+
                 <div class="mb-3">
                     <label for="inputMessage" class="form-label">Votre Message</label>
                     <textarea class="form-control" id="inputMessage" name="message" rows="4" required></textarea>
                 </div>
-    
+
                 <button type="submit" class="btn btn-primary w-100">Envoyer</button>
             </form>
         </div>
     </main>
-    
+
     <style>
         body {
-            background: #0c0c0c;
+            background: #00ffbf;
         }
-    
+
         .card {
             background: rgb(80, 178, 163);
             border-radius: 10px;
         }
-    
+
         .form-control {
             border-radius: 5px;
         }
-    
+
         .btn-primary {
             background-color: #007bff;
             border: none;
         }
-    
+
         .btn-primary:hover {
             background-color: #0056b3;
         }
     </style>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!--END BODY-->
 
