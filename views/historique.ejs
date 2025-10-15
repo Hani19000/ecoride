@@ -68,7 +68,7 @@
     <p><strong>Crédits utilisés :</strong> <%= r.credits_utilises %> crédits</p>
     <span class="statut"><%= r.statut %></span>
 
-    <!-- Annuler ma réservation (si tu veux laisser l'option pour les résas non terminées) -->
+    <!-- Annuler la réservation -->
     <% if (r.statut !== 'termine') { %>
       <form action="/annuler-reservation" method="POST" onsubmit="return confirm('Annuler VOTRE réservation ? Vous serez remboursé.');">
         <input type="hidden" name="trajet_id" value="<%= r.trajet_id %>">

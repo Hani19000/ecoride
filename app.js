@@ -79,7 +79,7 @@ app.use(async (req, res, next) => {
   res.locals.user = req.session?.user || null;
   next();
 });
-// Annuler un trajet (par le chauffeur) + REMBOURSEMENT de tous les passagers
+// Annulation d'un trajet par le chauffeur avec remboursement des passagers
 app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
   const { trajet_id } = req.body;
   const chauffeurId = req.session.user.id;
@@ -128,8 +128,8 @@ app.post('/annuler-trajet', isAuthenticated, async (req, res) => {
   }
 });
 
-// Démarrer un trajet
-// Démarrer un trajet
+
+// Démarrage d'un trajet
 app.post("/demarrer-trajet", isAuthenticated, async (req, res) => {
   const { trajet_id } = req.body;
   try {
@@ -195,7 +195,7 @@ app.post("/terminer-trajet", isAuthenticated, async (req, res) => {
 });
 
 
-// Annuler une réservation (par le passager) + REMBOURSEMENT
+// Annulation d'une réservation par le passager avec remboursement
 app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
   const userId = req.session.user.id;
   const { trajet_id } = req.body;
@@ -248,13 +248,13 @@ app.post('/annuler-reservation', isAuthenticated, async (req, res) => {
 });
 
 
-// POST /avis — Passager → Chauffeur uniquement
+// Route POST pour les avis : passagers vers chauffeurs uniquement
 app.post("/avis", isAuthenticated, async (req, res) => {
   try {
     const userId = req.session.user.id;
     const { reservation_id, trajet_id, note, commentaire = "" } = req.body;
 
-    // validations
+// Validations des données
     const n = parseInt(note, 10);
     if (!Number.isInteger(n) || n < 1 || n > 5) {
       return res.status(400).json({ ok:false, message:"Note invalide (1 à 5)." });
@@ -266,7 +266,7 @@ app.post("/avis", isAuthenticated, async (req, res) => {
       return res.status(400).json({ ok:false, message:"Commentaire requis pour une note ≤ 3." });
     }
 
-    // vérifier la réservation et le trajet (doit appartenir au passager + être terminé)
+// Vérification de la réservation et du trajet (appartenance au passager et statut terminé)
     const r = await db.query(`
       SELECT r.id AS reservation_id,
              r.user_id AS passager_id,
@@ -288,7 +288,7 @@ app.post("/avis", isAuthenticated, async (req, res) => {
       return res.status(400).json({ ok:false, message:"Le trajet n'est pas terminé." });
     }
 
-    // anti-doublon (un avis par réservation)
+// Prévention des doublons (un avis par réservation)
     const dup = await Avis.findOne({
       reservationId: Number(reservation_id),
       type: "passager_to_chauffeur"
@@ -297,7 +297,7 @@ app.post("/avis", isAuthenticated, async (req, res) => {
       return res.status(400).json({ ok:false, message:"Avis déjà soumis pour cette réservation." });
     }
 
-    // créer l'avis dans Mongo
+// Création de l'avis dans MongoDB
     await Avis.create({
       type: "passager_to_chauffeur",
       trajetId: Number(trajet_id),
@@ -490,7 +490,7 @@ app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
         }
       }
 
-      // marquer la résa validée définitivement
+      // marquer la réservation validée définitivement
       await db.query(`UPDATE reservations SET validation_statut = 'valide' WHERE id = $1`, [avis.reservationId]);
 
       return res.redirect("/employe/avis?success=Avis approuvé, chauffeur crédité");
@@ -499,7 +499,7 @@ app.post("/employe/avis/valider", isAuthenticated, async (req, res) => {
     if (action === "refuser") {
       await Avis.updateOne({ _id: avis_id }, { $set: { statut_validation: "refuse" } });
 
-      // annuler le payout (option simple)
+      // annuler le payout
       await db.query(`
         UPDATE payouts
           SET statut = 'canceled', resolved_at = NOW()
@@ -767,14 +767,14 @@ app.get("/employe/incidents", requireEmploye, async (req, res) => {
       { reservationId: 1, note: 1, commentaire: 1, createdAt: 1, trajetId: 1, passagerId: 1, chauffeurId: 1 }
     ).lean();
 
-    // Index rapide par reservationId
+// Index rapide par ID de réservation
     const dejaDansA = new Set(signales.map(r => Number(r.reservation_id)));
     const addFromMongo = [];
 
     for (const a of avisNegatifs) {
       if (!a.reservationId || dejaDansA.has(Number(a.reservationId))) continue;
 
-      // On complète depuis SQL pour récupérer noms/emails + détails trajet
+// Complément des données depuis SQL pour noms, emails et détails du trajet
       const { rows } = await db.query(`
         SELECT 
           r.id AS reservation_id, r.trajet_id, r.validation_statut, r.validation_comment,
@@ -943,7 +943,7 @@ const { rows: trajets } = await db.query(`
   }
 });
 
-// (Supprimé la double déclaration de session ici)
+// Suppression de la double déclaration de session
 app.use((req, res, next) => {
   console.log("📌 Session actuelle :", req.session);
   next();
@@ -974,7 +974,7 @@ app.get('/contact', (req, res) => {
   res.render('contact', { user: req.session.user });
 });
 
-// Middleware pour synchroniser les crédits de l'utilisateur
+// Middleware de synchronisation des crédits utilisateur
 app.use(async (req, res, next) => {
   if (req.session?.user?.id) {
     try {
@@ -1038,7 +1038,7 @@ app.post("/register", async (req, res) => {
       return res.render("error", { message: "Email déjà utilisé. Essayez de vous connecter." });
     }
 
-    // 🔒 Hachage du mot de passe
+// Hachage du mot de passe
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const result = await db.query(
@@ -1048,7 +1048,7 @@ app.post("/register", async (req, res) => {
 
     const user = result.rows[0];
 
-    // 🔄 Passer les infos utilisateur à profile.ejs
+// Transmission des informations utilisateur à profile.ejs
     res.render("profile.ejs", { user });
 
   } catch (err) {
@@ -1095,7 +1095,7 @@ app.post("/api/register", async (req, res) => {
 
     await db.query('COMMIT');
 
-    // ✅ Regénérer la session (hygiène) puis l’enregistrer AVANT redirection
+// Régénération de la session pour sécurité, puis enregistrement avant redirection
     req.session.regenerate((err) => {
       if (err) {
         console.error("Erreur regenerate session:", err);
@@ -1248,8 +1248,8 @@ app.post("/login", async (req, res) => {
       req.session.save(err2 => {
         if (err2) return res.render("error", { message: "Erreur de session" });
 
-        // 🔁 Redirection selon le rôle
-        if (req.session.user.role === 'admin') return res.redirect('/admin');
+// Redirection en fonction du rôle
+    if (req.session.user.role === 'admin') return res.redirect('/admin');
         if (req.session.user.role === 'employe') return res.redirect('/employe/avis');
         return res.redirect('/profile');
       });
@@ -1324,7 +1324,7 @@ app.get('/logout', (req, res) => {
 
 
 
-// ✅ Route pour créer un nouveau trajet
+// Route pour créer un nouveau trajet
 app.post('/trajet/creer', async (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Utilisateur non connecté' });
@@ -1395,7 +1395,7 @@ app.post('/trajet/creer', async (req, res) => {
 });
 
 
-// ✅ Route pour afficher la liste des trajets
+// Route pour afficher la liste des trajets
 app.get("/trajets", async (req, res) => {
   try {
     console.log("Requête SQL:", `
@@ -1427,7 +1427,7 @@ app.get("/trajets", async (req, res) => {
   }
 });
 
-// ✅ Route pour enregistrer les informations du véhicule depuis profile.ejs
+// Route pour enregistrer les informations du véhicule depuis profile.ejs
 app.post("/details", async (req, res) => {
   console.log("Données reçues du formulaire véhicule:", req.body);
 
@@ -1495,7 +1495,7 @@ app.post("/details", async (req, res) => {
   }
 });
 
-// Route pour afficher le formulaire de création de trajet
+// Affichage du formulaire de création de trajet
 app.get('/trajet/creer', async (req, res) => {
   if (!req.session.user) {
     return res.redirect('/login');
@@ -1666,7 +1666,7 @@ app.post("/reserver-trajet", async (req, res) => {
   }
 });
 
-// Gestionnaire d'erreur 404 pour les routes non trouvées
+// Gestionnaire d'erreur 404 pour routes non trouvées
 app.use((req, res, next) => {
   res.render("error", { message: "La page que vous recherchez n'existe pas." });
 });
